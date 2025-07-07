@@ -2,9 +2,7 @@ import os
 import json
 import re
 from typing import List, Dict, Tuple
-
-# Placeholder for Ollama client import - uncomment and install 'ollama' if you want to use it
-# import ollama
+import ollama
 
 def clean_text(text: str) -> str:
     """
@@ -167,10 +165,10 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
     
     try:
         # Uncomment the following lines if you have Ollama installed and running
-        # response = client.chat(model=model_name, messages=[{{'role': 'user', 'content': prompt}}])
-        # content = response['message']['content']
-        # qa_pair = json.loads(content)
-        # return qa_pair
+        response = client.chat(model=model_name, messages=[{{'role': 'user', 'content': prompt}}])
+        content = response['message']['content']
+        qa_pair = json.loads(content)
+        return qa_pair
         
         # Placeholder for demonstration without actual LLM call
         # print(f"--- Simulating LLM call for chunk (first 100 chars): {chunk[:100]}...")
@@ -235,7 +233,7 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
     all_qa_pairs = []
 
     # Initialize Ollama client (uncomment if using Ollama)
-    # ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
+    ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
 
     for strategy_name, chunk_func in chunking_strategies.items():
         print(f"  Applying chunking strategy: {strategy_name}")
@@ -248,8 +246,7 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
             # print(f"  Processing chunk {i+1}/{len(chunks)} from strategy '{strategy_name}'...")
             
             # Call LLM to generate Q&A pair
-            # Pass the ollama_client if uncommented above
-            qa_pair = generate_qa_with_llm(None, chunk) # Replace None with ollama_client if using
+            qa_pair = generate_qa_with_llm(ollama_client, chunk)
             
             qa_pair["source_repo"] = repo_name
             qa_pair["source_strategy"] = strategy_name
