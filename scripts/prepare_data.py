@@ -226,8 +226,6 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
         # The actual Ollama API call
         response = client.chat(model=model_name, messages=messages_to_send)
 
-        logging.debug(f"Ollama response type: {type(response)}")
-        logging.debug(f"Ollama response dir: {dir(response)}")
 
         # Try to extract the content from the response object
         content = None
