@@ -1,0 +1,12 @@
+pandas
+scikit-learn
+torch
+transformers
+peft
+accelerate
+bitsandbytes
+datasets
+fastparquet
+pyarrow
+uv
+ollama # Optional, for direct Ollama interaction
