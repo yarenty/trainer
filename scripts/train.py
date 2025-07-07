@@ -4,6 +4,7 @@ from datasets import load_dataset, Dataset, DatasetDict
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
 import json
+import time
 
 def load_and_prepare_datasets(data_dir: str) -> DatasetDict:
     """
@@ -49,7 +50,9 @@ def format_instruction(sample):
 
 def main():
     # --- Configuration ---
-    model_name = "llama3.2" #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
+    print("\n========== [PHASE 1: CONFIGURATION] ==========")
+    start_time = time.time()
+    model_name = "HuggingFaceTB/SmolLM2-1.7B-Instruct" #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
     # Ensure you have access to Llama 3.2 on Hugging Face or download it locally.
     # For Llama 3, you might need to use "meta-llama/Meta-Llama-3-8B" or similar.
     # You'll need to authenticate with Hugging Face if using a gated model.
@@ -73,15 +76,21 @@ def main():
     eval_steps = 500
     
     # --- Load Data ---
+    print("\n========== [PHASE 2: DATA LOADING & PREPARATION] ==========")
+    data_load_start = time.time()
     print("Loading and preparing datasets...")
     raw_datasets = load_and_prepare_datasets(data_dir)
     print(f"Train dataset size: {len(raw_datasets['train'])}")
     print(f"Validation dataset size: {len(raw_datasets['validation'])}")
+    print(f"Data loading completed in {time.time() - data_load_start:.2f} seconds.")
 
     # --- Load Tokenizer and Model ---
+    print("\n========== [PHASE 3: MODEL & TOKENIZER LOADING] ==========")
+    model_load_start = time.time()
     print(f"Loading tokenizer and model: {model_name}...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenizer.pad_token = tokenizer.eos_token # Set pad token for causal LMs
+    print("Tokenizer loaded.")
 
     # Quantization configuration (4-bit)
     bnb_config = BitsAndBytesConfig(
@@ -91,19 +100,20 @@ def main():
         bnb_4bit_use_double_quant=False,
     )
 
+    print("Loading model with quantization config...")
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
         quantization_config=bnb_config,
         device_map="auto", # Automatically maps model to available devices (e.g., GPU)
         torch_dtype=torch.float16, # Use float16 for faster training if supported
     )
+    print("Model loaded.")
     model.config.use_cache = False # Disable cache for training
     model.config.pretraining_tp = 1 # For Llama models, helps with tensor parallelism
-
-    # Prepare model for k-bit training
+    print("Preparing model for k-bit training...")
     model = prepare_model_for_kbit_training(model)
-
-    # --- Configure LoRA ---
+    print("Model prepared for k-bit training.")
+    print("Configuring LoRA...")
     peft_config = LoraConfig(
         r=lora_r,
         lora_alpha=lora_alpha,
@@ -114,8 +124,11 @@ def main():
     model = get_peft_model(model, peft_config)
     print("LoRA model prepared:")
     model.print_trainable_parameters()
+    print(f"Model and tokenizer loading completed in {time.time() - model_load_start:.2f} seconds.")
 
     # --- Tokenize Data ---
+    print("\n========== [PHASE 4: TOKENIZATION] ==========")
+    tokenization_start = time.time()
     print("Tokenizing datasets...")
     def tokenize_function(examples):
         # Apply formatting and then tokenize
@@ -131,6 +144,10 @@ def main():
         batched=True,
         remove_columns=raw_datasets["train"].column_names # Remove original columns
     )
+    print("Tokenization complete.")
+    print(f"Tokenized train dataset: {len(tokenized_datasets['train'])} samples")
+    print(f"Tokenized validation dataset: {len(tokenized_datasets['validation'])} samples")
+    print(f"Tokenization completed in {time.time() - tokenization_start:.2f} seconds.")
 
     # --- Training Arguments ---
     training_args = TrainingArguments(
@@ -159,16 +176,26 @@ def main():
         eval_dataset=tokenized_datasets["validation"],
         tokenizer=tokenizer,
     )
+    print("Trainer initialized.")
 
     # --- Start Training ---
+    print("\n========== [PHASE 6: TRAINING] ==========")
+    training_start = time.time()
     print("Starting training...")
     trainer.train()
+    print(f"Training completed in {time.time() - training_start:.2f} seconds.")
 
     # --- Save Fine-tuned Model ---
+    print("\n========== [PHASE 7: SAVING MODEL] ==========")
+    save_start = time.time()
     print("Saving fine-tuned model adapters...")
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
     print(f"Fine-tuning complete. Model adapters saved to {output_dir}")
+    print(f"Model saving completed in {time.time() - save_start:.2f} seconds.")
+
+    print("\n========== [ALL PHASES COMPLETE] ==========")
+    print(f"Total script runtime: {time.time() - start_time:.2f} seconds.")
 
 if __name__ == "__main__":
     # Ensure you have a GPU and necessary drivers installed for this to run efficiently.

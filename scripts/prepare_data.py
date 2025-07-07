@@ -2,6 +2,7 @@ import os
 import json
 import re
 from typing import List, Dict, Tuple
+import glob
 
 import ollama # Ensure this is at the top
 
@@ -265,7 +266,8 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
 
 def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
     """
-    Processes documentation for a single repository, skipping irrelevant files and generating Q&A for each doc file.
+    Processes documentation and Rust source files for a single repository, skipping irrelevant files and generating Q&A for each doc/code file.
+    Appends each Q&A pair to the output file immediately after generation.
     """
     print(f"\n--- Processing repository: {repo_name} ---")
 
@@ -274,6 +276,17 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
         os.path.join(repo_path, "docs"),
         # Add other potential documentation paths if known for specific repos
     ]
+
+    # Also include all .rs files in the repo (recursively), including src and examples directories
+    code_source_dirs = [repo_path]
+    # Add src and examples directories if they exist and are not already in the list
+    for subdir in ["src", "examples"]:
+        subdir_path = os.path.join(repo_path, subdir)
+        if os.path.exists(subdir_path) and os.path.isdir(subdir_path) and subdir_path not in code_source_dirs:
+            code_source_dirs.append(subdir_path)
+
+    # Track processed files to avoid duplicates
+    processed_code_files = set()
 
     # Filenames to skip (case-insensitive)
     skip_files = {"license", "notice", "contributing", "code_of_conduct"}
@@ -285,13 +298,15 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
         "paragraph_based": lambda text: chunk_by_paragraphs(text, min_chars=300),
         "fixed_size_500_50": lambda text: chunk_by_fixed_size(text, chunk_size=500, overlap=50),
     }
-
-    all_qa_pairs = []
+    # For Rust code, use only fixed size chunking
+    rust_chunking_strategy = lambda text: chunk_by_fixed_size(text, chunk_size=500, overlap=50)
 
     # Initialize Ollama client (uncomment if using Ollama)
     ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
 
     found_docs = False
+    output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
+    # Process documentation files
     for doc_dir in docs_source_dirs:
         if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
             found_docs = True
@@ -342,23 +357,65 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
                             qa_pair["source_strategy"] = strategy_name
                             qa_pair["source_file"] = file_name
                             qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-                            all_qa_pairs.append(qa_pair)
-            # Do not break; process all doc dirs and files
-
+                            # Append to output file immediately
+                            with open(output_file, 'a', encoding='utf-8') as f:
+                                f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+    # Process Rust source files
+    for code_dir in code_source_dirs:
+        for root, _, files in os.walk(code_dir):
+            for file_name in files:
+                if not file_name.endswith(".rs"):
+                    continue
+                file_path = os.path.join(root, file_name)
+                # Avoid duplicate processing
+                abs_path = os.path.abspath(file_path)
+                if abs_path in processed_code_files:
+                    continue
+                processed_code_files.add(abs_path)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        file_content = f.read()
+                except Exception as e:
+                    print(f"Could not read Rust file {file_path}: {e}")
+                    continue
+                cleaned_content = clean_text(file_content)
+                if not cleaned_content.strip():
+                    print(f"  Cleaned content is empty for Rust file {file_name}. Skipping.")
+                    continue
+                # Optionally skip test or generated files (by path or name)
+                # if 'test' in file_name.lower() or 'generated' in file_name.lower():
+                #     continue
+                print(f"    Chunking Rust file: {file_name}")
+                chunks = rust_chunking_strategy(cleaned_content)
+                print(f"    Generated {len(chunks)} chunks for Rust file '{file_name}'.")
+                for i, chunk in enumerate(chunks):
+                    if not chunk.strip():
+                        continue
+                    qa_pair = generate_qa_with_llm(ollama_client, chunk)
+                    qa_pair["source_repo"] = repo_name
+                    qa_pair["source_strategy"] = "rust_fixed_size_500_50"
+                    qa_pair["source_file"] = file_name
+                    qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
+                    with open(output_file, 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
     if not found_docs:
         print(f"No documentation files found for {repo_name}. Skipping.")
         return
-    if not all_qa_pairs:
-        print(f"No Q&A pairs generated for {repo_name}. Skipping output.")
-        return
+    print(f"  Q&A pairs appended to: {output_file}")
 
-    output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
-    with open(output_file, 'w', encoding='utf-8') as f:
-        for qa in all_qa_pairs:
-            f.write(json.dumps(qa, ensure_ascii=False) + '\n')
-
-    print(f"  Generated {len(all_qa_pairs)} Q&A pairs for {repo_name}. Output saved to: {output_file}")
-
+def process_py_files(data_dir):
+    """
+    Finds and processes all .py files in the data_dir. Add your processing logic as needed.
+    """
+    py_files = glob.glob(os.path.join(data_dir, '*.py'))
+    print(f"Found {len(py_files)} .py files in {data_dir}.")
+    for py_file in py_files:
+        print(f"Processing Python file: {py_file}")
+        # Add your processing logic here (e.g., read, analyze, extract info, etc.)
+        with open(py_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            # Example: just print the first 100 chars
+            print(f"First 100 chars: {content[:100]}")
 
 def main():
     base_sources_dir = "/opt/ml/trainer/sources"
@@ -374,6 +431,9 @@ def main():
             process_repository_docs(item, item_path, output_data_dir)
 
     print("\nAll repository documentation processing complete.")
+
+    # data_dir = "/opt/ml/trainer/data"  # or wherever your data is
+    # process_py_files(data_dir)
 
 if __name__ == "__main__":
     main()
