@@ -395,9 +395,10 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
     ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
     found_docs = False
     output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
-    # Process documentation files concurrently
-    doc_futures = []
+    # Collect all doc and code file tasks
+    future_to_fileinfo = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        # Docs
         for doc_dir in docs_source_dirs:
             if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
                 found_docs = True
@@ -415,17 +416,8 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
                             file_path, file_name, repo_name, chunking_strategies,
                             clean_text, generate_qa_with_llm, ollama_client, output_file
                         )
-                        doc_futures.append((future, file_name))
-        for future, file_name in doc_futures:
-            try:
-                future.result(timeout=120)
-            except concurrent.futures.TimeoutError:
-                print(f"Timeout: Skipping {file_name} after 2 minutes.")
-            except Exception as e:
-                print(f"Error processing {file_name}: {e}")
-    # Process code source files concurrently
-    code_futures = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                        future_to_fileinfo[future] = (file_name, 'doc')
+        # Code
         for code_dir in code_source_dirs:
             for root, _, files in os.walk(code_dir):
                 for file_name in files:
@@ -442,32 +434,21 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
                         file_path, file_name, repo_name, code_chunking_strategy,
                         clean_text, generate_qa_with_llm, ollama_client, output_file
                     )
-                    code_futures.append((future, file_name))
-        for future, file_name in code_futures:
+                    future_to_fileinfo[future] = (file_name, 'code')
+        # Process results as they complete
+        for future in as_completed(future_to_fileinfo):
+            file_name, file_type = future_to_fileinfo[future]
             try:
                 future.result(timeout=120)
             except concurrent.futures.TimeoutError:
-                print(f"Timeout: Skipping code file {file_name} after 2 minutes.")
+                print(f"Timeout: Skipping {file_type} file {file_name} after 2 minutes.")
             except Exception as e:
-                print(f"Error processing code file {file_name}: {e}")
+                print(f"Error processing {file_type} file {file_name}: {e}")
     if not found_docs:
         print(f"No documentation files found for {repo_name}. Skipping.")
         return
     print(f"  Q&A pairs appended to: {output_file}")
 
-def process_py_files(data_dir):
-    """
-    Finds and processes all .py files in the data_dir. Add your processing logic as needed.
-    """
-    py_files = glob.glob(os.path.join(data_dir, '*.py'))
-    print(f"Found {len(py_files)} .py files in {data_dir}.")
-    for py_file in py_files:
-        print(f"Processing Python file: {py_file}")
-        # Add your processing logic here (e.g., read, analyze, extract info, etc.)
-        with open(py_file, 'r', encoding='utf-8') as f:
-            content = f.read()
-            # Example: just print the first 100 chars
-            print(f"First 100 chars: {content[:100]}")
 
 def main():
     base_sources_dir = "/opt/ml/trainer/sources"
@@ -484,8 +465,6 @@ def main():
 
     print("\nAll repository documentation processing complete.")
 
-    # data_dir = "/opt/ml/trainer/data"  # or wherever your data is
-    # process_py_files(data_dir)
 
 if __name__ == "__main__":
     main()
