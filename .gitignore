@@ -35,3 +35,6 @@ models/
 
 # Ollama related files (if any specific ones are generated)
 # .ollama/ # Uncomment if Ollama generates local files here
+llama.cpp
+llama.cpp/
+llama.cpp/*
