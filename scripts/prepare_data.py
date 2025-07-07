@@ -5,8 +5,15 @@ from typing import List, Dict, Tuple
 import glob
 import concurrent.futures
 from concurrent.futures import as_completed
+import logging
 
 import ollama # Ensure this is at the top
+
+# Set up logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+)
 
 def clean_text(text: str) -> str:
     """
@@ -73,7 +80,7 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
                 processed_chunks.append(current_chunk.strip())
                 current_chunk = ""
         if len(processed_chunks) > MAX_CHUNKS:
-            print(f"[ERROR] chunk_by_headings: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            logging.error(f"chunk_by_headings: Too many chunks (> {MAX_CHUNKS}). Aborting.")
             return []
     if current_chunk:
         processed_chunks.append(current_chunk.strip())
@@ -90,13 +97,13 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
                 final_chunks.append(temp_chunk)
                 temp_chunk = chunk
         if len(final_chunks) > MAX_CHUNKS:
-            print(f"[ERROR] chunk_by_headings: Too many chunks after merge (> {MAX_CHUNKS}). Aborting.")
+            logging.error(f"chunk_by_headings: Too many chunks after merge (> {MAX_CHUNKS}). Aborting.")
             return []
     if temp_chunk:
         final_chunks.append(temp_chunk)
-    print(f"[DEBUG] chunk_by_headings: Generated {len(final_chunks)} chunks. First chunk preview: {final_chunks[0][:100] if final_chunks else 'EMPTY'}")
+    logging.debug(f"chunk_by_headings: Generated {len(final_chunks)} chunks. First chunk preview: {final_chunks[0][:100] if final_chunks else 'EMPTY'}")
     if len(final_chunks) > MAX_CHUNKS:
-        print(f"[ERROR] chunk_by_headings: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        logging.error(f"chunk_by_headings: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
         return []
     return [c for c in final_chunks if c]
 
@@ -119,13 +126,13 @@ def chunk_by_paragraphs(text: str, min_chars: int = 100) -> List[str]:
                 chunks.append(current_chunk)
                 current_chunk = para
         if len(chunks) > MAX_CHUNKS:
-            print(f"[ERROR] chunk_by_paragraphs: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            logging.error(f"chunk_by_paragraphs: Too many chunks (> {MAX_CHUNKS}). Aborting.")
             return []
     if current_chunk:
         chunks.append(current_chunk)
-    print(f"[DEBUG] chunk_by_paragraphs: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
+    logging.debug(f"chunk_by_paragraphs: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
     if len(chunks) > MAX_CHUNKS:
-        print(f"[ERROR] chunk_by_paragraphs: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        logging.error(f"chunk_by_paragraphs: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
         return []
     return [c for c in chunks if c]
 
@@ -135,7 +142,7 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
     """
     MAX_CHUNKS = 10000
     if overlap >= chunk_size:
-        print(f"[ERROR] chunk_by_fixed_size: overlap ({overlap}) >= chunk_size ({chunk_size}). Aborting.")
+        logging.error(f"chunk_by_fixed_size: overlap ({overlap}) >= chunk_size ({chunk_size}). Aborting.")
         return []
     chunks = []
     start = 0
@@ -156,7 +163,7 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
         if break_points:
             split_at = max(break_points) + 1
             if split_at <= start:
-                print(f"[WARN] chunk_by_fixed_size: split_at ({split_at}) <= start ({start}). Advancing by chunk_size.")
+                logging.warning(f"chunk_by_fixed_size: split_at ({split_at}) <= start ({start}). Advancing by chunk_size.")
                 split_at = end
             chunks.append(text[start:split_at].strip())
             new_start = split_at - overlap
@@ -164,15 +171,15 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
             chunks.append(text[start:end].strip())
             new_start = end - overlap
         if new_start <= start:
-            print(f"[ERROR] chunk_by_fixed_size: new_start ({new_start}) <= start ({start}). Aborting to prevent infinite loop.")
+            logging.error(f"chunk_by_fixed_size: new_start ({new_start}) <= start ({start}). Aborting to prevent infinite loop.")
             break
         start = new_start
         if len(chunks) > MAX_CHUNKS:
-            print(f"[ERROR] chunk_by_fixed_size: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            logging.error(f"chunk_by_fixed_size: Too many chunks (> {MAX_CHUNKS}). Aborting.")
             return []
-    print(f"[DEBUG] chunk_by_fixed_size: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
+    logging.debug(f"chunk_by_fixed_size: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
     if len(chunks) > MAX_CHUNKS:
-        print(f"[ERROR] chunk_by_fixed_size: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        logging.error(f"chunk_by_fixed_size: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
         return []
     return [c for c in chunks if c]
 
@@ -214,40 +221,40 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
         # Construct messages list
         messages_to_send = [{'role': 'user', 'content': prompt_for_ollama}]
 
-        print(f"DEBUG: Attempting ollama.chat with model='{model_name}' and messages={messages_to_send[0]['content'][:100]}...")
+        logging.debug(f"Attempting ollama.chat with model='{model_name}' and messages={messages_to_send[0]['content'][:100]}...")
 
         # The actual Ollama API call
         response = client.chat(model=model_name, messages=messages_to_send)
 
-        print(f"DEBUG: Ollama response type: {type(response)}")
-        print(f"DEBUG: Ollama response dir: {dir(response)}")
+        logging.debug(f"Ollama response type: {type(response)}")
+        logging.debug(f"Ollama response dir: {dir(response)}")
 
         # Try to extract the content from the response object
         content = None
         if hasattr(response, "message"):
-            print(f"DEBUG: Ollama response.message: {response.message}")
+            logging.debug(f"Ollama response.message: {response.message}")
             message = response.message
             if hasattr(message, "content"):
                 content = message.content
-                print(f"DEBUG: Extracted content from response.message.content: {str(content)[:200]}...")
+                logging.debug(f"Extracted content from response.message.content: {str(content)[:200]}...")
             else:
                 content = str(message)
-                print(f"DEBUG: Extracted content from response.message (str): {str(content)[:200]}...")
+                logging.debug(f"Extracted content from response.message (str): {str(content)[:200]}...")
         elif hasattr(response, "content"):
             content = response.content
-            print(f"DEBUG: Extracted content from response.content: {str(content)[:200]}...")
+            logging.debug(f"Extracted content from response.content: {str(content)[:200]}...")
         elif hasattr(response, "model_dump"):
             content_dict = response.model_dump()
-            print(f"DEBUG: model_dump: {content_dict}")
+            logging.debug(f"model_dump: {content_dict}")
             # Try to extract content from dict
             if isinstance(content_dict, dict):
                 if "message" in content_dict and isinstance(content_dict["message"], dict):
                     content = content_dict["message"].get("content", None)
                 elif "content" in content_dict:
                     content = content_dict["content"]
-            print(f"DEBUG: Extracted content from model_dump: {str(content)[:200]}...")
+            logging.debug(f"Extracted content from model_dump: {str(content)[:200]}...")
         else:
-            print("DEBUG: Unknown response structure from Ollama client. Using str(response)")
+            logging.debug("Unknown response structure from Ollama client. Using str(response)")
             content = str(response)
 
         # Now parse content as JSON if it's a string
@@ -256,8 +263,8 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
             try:
                 qa_pair = json.loads(content)
             except json.JSONDecodeError as e:
-                print(f"Error: LLM output was not valid JSON. Details: {e}")
-                print(f"Problematic content: {content}")
+                logging.error(f"LLM output was not valid JSON. Details: {e}")
+                logging.error(f"Problematic content: {content}")
                 return {
                     "question": "Error: LLM output was not valid JSON.",
                     "answer": f"Error: LLM output was not valid JSON. Original chunk: {chunk[:200]}..."
@@ -265,7 +272,7 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
         elif isinstance(content, dict):
             qa_pair = content
         else:
-            print("Error: Unknown content type from Ollama client.")
+            logging.error("Unknown content type from Ollama client.")
             return {
                 "question": "Error: Unknown content type from Ollama client.",
                 "answer": f"Error: Unknown content type. Original chunk: {chunk[:200]}..."
@@ -274,18 +281,18 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
         return qa_pair
 
     except TypeError as e:
-        print(f"Error: Caught TypeError during Ollama call: {e}")
-        print(f"DEBUG: Type of client: {type(client)}")
-        print(f"DEBUG: Type of model_name: {type(model_name)}")
-        print(f"DEBUG: Type of messages_to_send: {type(messages_to_send)}")
+        logging.error(f"Error: Caught TypeError during Ollama call: {e}")
+        logging.error(f"Type of client: {type(client)}")
+        logging.error(f"Type of model_name: {type(model_name)}")
+        logging.error(f"Type of messages_to_send: {type(messages_to_send)}")
         if messages_to_send and isinstance(messages_to_send[0], dict):
-            print(f"DEBUG: First message dict: {messages_to_send[0]}")
+            logging.error(f"First message dict: {messages_to_send[0]}")
         return {
             "question": "Error: Unhashable type dict encountered.",
             "answer": f"Error: Unhashable type dict. Original chunk: {chunk[:200]}..."
         }
     except Exception as e:
-        print(f"Error generating QA for chunk: {e}")
+        logging.error(f"Error generating QA for chunk: {e}")
         # Fallback or error handling
         return {
             "question": "Error: Could not generate question.",
@@ -297,25 +304,25 @@ def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies
         with open(file_path, 'r', encoding='utf-8') as f:
             file_content = f.read()
     except Exception as e:
-        print(f"Could not read file {file_path}: {e}")
+        logging.error(f"Could not read file {file_path}: {e}")
         return
     cleaned_content = clean_text(file_content)
     if not cleaned_content.strip():
-        print(f"  Cleaned content is empty for {file_name}. Skipping.")
+        logging.info(f"Cleaned content is empty for {file_name}. Skipping.")
         return
     # Skip if the cleaned content is likely a license or legal text
     if ("copyright" in cleaned_content.lower() or "license" in cleaned_content.lower()) and len(cleaned_content) < 2000:
-        print(f"  Skipping file (license/legal detected): {file_name}")
+        logging.info(f"Skipping file (license/legal detected): {file_name}")
         return
     for strategy_name, chunk_func in chunking_strategies.items():
-        print(f"    Applying chunking strategy: {strategy_name} to {file_name}")
+        logging.info(f"Applying chunking strategy: {strategy_name} to {file_name}")
         chunks = chunk_func(cleaned_content)
-        print(f"    [DEBUG] {strategy_name}: {len(chunks)} chunks for {file_name}")
+        logging.debug(f"{strategy_name}: {len(chunks)} chunks for {file_name}")
         if not chunks:
-            print(f"    [WARN] {strategy_name}: No chunks generated for {file_name}. Skipping this strategy.")
+            logging.warning(f"{strategy_name}: No chunks generated for {file_name}. Skipping this strategy.")
             continue
         if len(chunks) > 10000:
-            print(f"    [ERROR] {strategy_name}: Too many chunks ({len(chunks)}) for {file_name}. Skipping this strategy.")
+            logging.error(f"{strategy_name}: Too many chunks ({len(chunks)}) for {file_name}. Skipping this strategy.")
             continue
         for i, chunk in enumerate(chunks):
             if not chunk.strip():
@@ -323,9 +330,9 @@ def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies
             # Skip chunks that are likely license/legal text
             chunk_lower = chunk.lower()
             if ("copyright" in chunk_lower or "license" in chunk_lower) and len(chunk) < 2000:
-                print(f"      Skipping chunk {i+1} in {file_name} (license/legal detected)")
+                logging.info(f"Skipping chunk {i+1} in {file_name} (license/legal detected)")
                 continue
-            print(f"      [DEBUG] Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
+            logging.debug(f"Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
             qa_pair = generate_qa_with_llm(ollama_client, chunk)
             qa_pair["source_repo"] = repo_name
             qa_pair["source_strategy"] = strategy_name
@@ -339,25 +346,25 @@ def process_single_code_file(file_path, file_name, repo_name, code_chunking_stra
         with open(file_path, 'r', encoding='utf-8') as f:
             file_content = f.read()
     except Exception as e:
-        print(f"Could not read code file {file_path}: {e}")
+        logging.error(f"Could not read code file {file_path}: {e}")
         return
     cleaned_content = clean_text(file_content)
     if not cleaned_content.strip():
-        print(f"  Cleaned content is empty for code file {file_name}. Skipping.")
+        logging.info(f"Cleaned content is empty for code file {file_name}. Skipping.")
         return
-    print(f"    Chunking code file: {file_name}")
+    logging.info(f"Chunking code file: {file_name}")
     chunks = code_chunking_strategy(cleaned_content)
-    print(f"    [DEBUG] code_fixed_size_500_50: {len(chunks)} chunks for {file_name}")
+    logging.debug(f"code_fixed_size_500_50: {len(chunks)} chunks for {file_name}")
     if not chunks:
-        print(f"    [WARN] code_fixed_size_500_50: No chunks generated for {file_name}. Skipping.")
+        logging.warning(f"code_fixed_size_500_50: No chunks generated for {file_name}. Skipping.")
         return
     if len(chunks) > 10000:
-        print(f"    [ERROR] code_fixed_size_500_50: Too many chunks ({len(chunks)}) for {file_name}. Skipping.")
+        logging.error(f"code_fixed_size_500_50: Too many chunks ({len(chunks)}) for {file_name}. Skipping.")
         return
     for i, chunk in enumerate(chunks):
         if not chunk.strip():
             continue
-        print(f"      [DEBUG] Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
+        logging.debug(f"Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
         qa_pair = generate_qa_with_llm(ollama_client, chunk)
         qa_pair["source_repo"] = repo_name
         qa_pair["source_strategy"] = "code_fixed_size_500_50"
@@ -371,7 +378,7 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
     Processes documentation and code source files for a single repository, skipping irrelevant files and generating Q&A for each doc/code file.
     Appends each Q&A pair to the output file immediately after generation.
     """
-    print(f"\n--- Processing repository: {repo_name} ---")
+    logging.info(f"\n--- Processing repository: {repo_name} ---")
     docs_source_dirs = [
         os.path.join(repo_path, "docs", "source"),
         os.path.join(repo_path, "docs"),
@@ -406,7 +413,7 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
                     for file_name in files:
                         base_name = os.path.splitext(file_name)[0].lower()
                         if base_name in skip_files:
-                            print(f"  Skipping file (by name): {file_name}")
+                            logging.info(f"Skipping file (by name): {file_name}")
                             continue
                         if not (file_name.endswith(".md") or file_name.endswith(".rst")):
                             continue
@@ -441,13 +448,13 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
             try:
                 future.result(timeout=120)
             except concurrent.futures.TimeoutError:
-                print(f"Timeout: Skipping {file_type} file {file_name} after 2 minutes.")
+                logging.warning(f"Timeout: Skipping {file_type} file {file_name} after 2 minutes.")
             except Exception as e:
-                print(f"Error processing {file_type} file {file_name}: {e}")
+                logging.error(f"Error processing {file_type} file {file_name}: {e}")
     if not found_docs:
-        print(f"No documentation files found for {repo_name}. Skipping.")
+        logging.warning(f"No documentation files found for {repo_name}. Skipping.")
         return
-    print(f"  Q&A pairs appended to: {output_file}")
+    logging.info(f"Q&A pairs appended to: {output_file}")
 
 
 def main():
@@ -463,7 +470,7 @@ def main():
         if os.path.isdir(item_path):
             process_repository_docs(item, item_path, output_data_dir)
 
-    print("\nAll repository documentation processing complete.")
+    logging.info("\nAll repository documentation processing complete.")
 
 
 if __name__ == "__main__":
