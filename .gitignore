@@ -1,0 +1,37 @@
+# Python Project .gitignore
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+.venv/
+
+# Distribution / packaging
+.eggs/
+*.egg-info/
+dist/
+build/
+wheels/
+*.whl
+
+# Editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+
+# Generated data and models
+data/
+models/
+
+# Ollama related files (if any specific ones are generated)
+# .ollama/ # Uncomment if Ollama generates local files here
