@@ -2,7 +2,8 @@ import os
 import json
 import re
 from typing import List, Dict, Tuple
-import ollama
+
+import ollama # Ensure this is at the top
 
 def clean_text(text: str) -> str:
     """
@@ -21,7 +22,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'^\s*[-=~`]+\s*$', '', text, flags=re.MULTILINE)
 
     # Remove Markdown bold/italic (**, __, *, _)
-    text = re.sub(r'(\**|__)(.*?)\1', r'\2', text)
+    text = re.sub(r'(\*\*|__)(.*?)\1', r'\2', text)
     text = re.sub(r'(\*|_)(.*?)\1', r'\2', text)
 
     # Remove Markdown links [text](url) and images ![alt](url)
@@ -146,6 +147,20 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
             
     return [c for c in chunks if c]
 
+def extract_json_from_response(text: str) -> str:
+    """
+    Extract JSON from a Markdown code block or from the first {...} block in the string.
+    """
+    # Try to extract JSON from a Markdown code block
+    code_block = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', text)
+    if code_block:
+        return code_block.group(1).strip()
+    # Fallback: extract first {...} block
+    brace_block = re.search(r'({[\s\S]+})', text)
+    if brace_block:
+        return brace_block.group(1).strip()
+    return text.strip()
+
 def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Dict[str, str]:
     """
     Generates a question and answer pair for a given text chunk using an LLM.
@@ -164,17 +179,81 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
     """
     
     try:
-        # Uncomment the following lines if you have Ollama installed and running
-        response = client.chat(model=model_name, messages=[{{'role': 'user', 'content': prompt}}])
-        content = response['message']['content']
-        qa_pair = json.loads(content)
+        # Explicitly ensure prompt is a string
+        prompt_for_ollama = str(prompt)
+
+        # Construct messages list
+        messages_to_send = [{'role': 'user', 'content': prompt_for_ollama}]
+
+        print(f"DEBUG: Attempting ollama.chat with model='{model_name}' and messages={messages_to_send[0]['content'][:100]}...")
+
+        # The actual Ollama API call
+        response = client.chat(model=model_name, messages=messages_to_send)
+
+        print(f"DEBUG: Ollama response type: {type(response)}")
+        print(f"DEBUG: Ollama response dir: {dir(response)}")
+
+        # Try to extract the content from the response object
+        content = None
+        if hasattr(response, "message"):
+            print(f"DEBUG: Ollama response.message: {response.message}")
+            message = response.message
+            if hasattr(message, "content"):
+                content = message.content
+                print(f"DEBUG: Extracted content from response.message.content: {str(content)[:200]}...")
+            else:
+                content = str(message)
+                print(f"DEBUG: Extracted content from response.message (str): {str(content)[:200]}...")
+        elif hasattr(response, "content"):
+            content = response.content
+            print(f"DEBUG: Extracted content from response.content: {str(content)[:200]}...")
+        elif hasattr(response, "model_dump"):
+            content_dict = response.model_dump()
+            print(f"DEBUG: model_dump: {content_dict}")
+            # Try to extract content from dict
+            if isinstance(content_dict, dict):
+                if "message" in content_dict and isinstance(content_dict["message"], dict):
+                    content = content_dict["message"].get("content", None)
+                elif "content" in content_dict:
+                    content = content_dict["content"]
+            print(f"DEBUG: Extracted content from model_dump: {str(content)[:200]}...")
+        else:
+            print("DEBUG: Unknown response structure from Ollama client. Using str(response)")
+            content = str(response)
+
+        # Now parse content as JSON if it's a string
+        if isinstance(content, str):
+            content = extract_json_from_response(content)
+            try:
+                qa_pair = json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"Error: LLM output was not valid JSON. Details: {e}")
+                print(f"Problematic content: {content}")
+                return {
+                    "question": "Error: LLM output was not valid JSON.",
+                    "answer": f"Error: LLM output was not valid JSON. Original chunk: {chunk[:200]}..."
+                }
+        elif isinstance(content, dict):
+            qa_pair = content
+        else:
+            print("Error: Unknown content type from Ollama client.")
+            return {
+                "question": "Error: Unknown content type from Ollama client.",
+                "answer": f"Error: Unknown content type. Original chunk: {chunk[:200]}..."
+            }
+
         return qa_pair
-        
-        # Placeholder for demonstration without actual LLM call
-        # print(f"--- Simulating LLM call for chunk (first 100 chars): {chunk[:100]}...")
+
+    except TypeError as e:
+        print(f"Error: Caught TypeError during Ollama call: {e}")
+        print(f"DEBUG: Type of client: {type(client)}")
+        print(f"DEBUG: Type of model_name: {type(model_name)}")
+        print(f"DEBUG: Type of messages_to_send: {type(messages_to_send)}")
+        if messages_to_send and isinstance(messages_to_send[0], dict):
+            print(f"DEBUG: First message dict: {messages_to_send[0]}")
         return {
-            "question": f"What is the main topic of this section regarding DataFusion?",
-            "answer": f"This section discusses {chunk.split('.')[0].strip()} in DataFusion."
+            "question": "Error: Unhashable type dict encountered.",
+            "answer": f"Error: Unhashable type dict. Original chunk: {chunk[:200]}..."
         }
     except Exception as e:
         print(f"Error generating QA for chunk: {e}")
@@ -186,42 +265,19 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
 
 def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
     """
-    Processes documentation for a single repository.
+    Processes documentation for a single repository, skipping irrelevant files and generating Q&A for each doc file.
     """
     print(f"\n--- Processing repository: {repo_name} ---")
-    
+
     docs_source_dirs = [
         os.path.join(repo_path, "docs", "source"),
         os.path.join(repo_path, "docs"),
         # Add other potential documentation paths if known for specific repos
     ]
 
-    all_docs_content = ""
-    found_docs = False
-    for doc_dir in docs_source_dirs:
-        if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
-            found_docs = True
-            for root, _, files in os.walk(doc_dir):
-                for file_name in files:
-                    if file_name.endswith((".rst", ".md")):
-                        file_path = os.path.join(root, file_name)
-                        try:
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                all_docs_content += f.read() + "\n\n---\n\n" # Separator between files
-                        except Exception as e:
-                            print(f"Could not read file {file_path}: {e}")
-                            continue
-            if all_docs_content.strip(): # If content found in one, no need to check others
-                break
-    
-    if not found_docs or not all_docs_content.strip():
-        print(f"No documentation files found or content is empty for {repo_name}. Skipping.")
-        return
-
-    cleaned_content = clean_text(all_docs_content)
-    if not cleaned_content.strip():
-        print(f"Cleaned content is empty for {repo_name}. Skipping.")
-        return
+    # Filenames to skip (case-insensitive)
+    skip_files = {"license", "notice", "contributing", "code_of_conduct"}
+    skip_exts = {".txt", ".md", ".rst"}  # Only skip by name, not by extension
 
     # Define chunking strategies
     chunking_strategies = {
@@ -235,23 +291,66 @@ def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str
     # Initialize Ollama client (uncomment if using Ollama)
     ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
 
-    for strategy_name, chunk_func in chunking_strategies.items():
-        print(f"  Applying chunking strategy: {strategy_name}")
-        chunks = chunk_func(cleaned_content)
-        print(f"  Generated {len(chunks)} chunks for strategy '{strategy_name}'.")
+    found_docs = False
+    for doc_dir in docs_source_dirs:
+        if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
+            found_docs = True
+            for root, _, files in os.walk(doc_dir):
+                for file_name in files:
+                    # Skip irrelevant files by name
+                    base_name = os.path.splitext(file_name)[0].lower()
+                    if base_name in skip_files:
+                        print(f"  Skipping file (by name): {file_name}")
+                        continue
+                    # Only process .md and .rst files
+                    if not (file_name.endswith(".md") or file_name.endswith(".rst")):
+                        continue
+                    file_path = os.path.join(root, file_name)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            file_content = f.read()
+                    except Exception as e:
+                        print(f"Could not read file {file_path}: {e}")
+                        continue
 
-        for i, chunk in enumerate(chunks):
-            if not chunk.strip():
-                continue
-            # print(f"  Processing chunk {i+1}/{len(chunks)} from strategy '{strategy_name}'...")
-            
-            # Call LLM to generate Q&A pair
-            qa_pair = generate_qa_with_llm(ollama_client, chunk)
-            
-            qa_pair["source_repo"] = repo_name
-            qa_pair["source_strategy"] = strategy_name
-            qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-            all_qa_pairs.append(qa_pair)
+                    cleaned_content = clean_text(file_content)
+                    if not cleaned_content.strip():
+                        print(f"  Cleaned content is empty for {file_name}. Skipping.")
+                        continue
+
+                    # Skip if the cleaned content is likely a license or legal text
+                    if ("copyright" in cleaned_content.lower() or "license" in cleaned_content.lower()) and len(cleaned_content) < 2000:
+                        print(f"  Skipping file (license/legal detected): {file_name}")
+                        continue
+
+                    for strategy_name, chunk_func in chunking_strategies.items():
+                        print(f"    Applying chunking strategy: {strategy_name} to {file_name}")
+                        chunks = chunk_func(cleaned_content)
+                        print(f"    Generated {len(chunks)} chunks for strategy '{strategy_name}' in file '{file_name}'.")
+
+                        for i, chunk in enumerate(chunks):
+                            if not chunk.strip():
+                                continue
+                            # Skip chunks that are likely license/legal text
+                            chunk_lower = chunk.lower()
+                            if ("copyright" in chunk_lower or "license" in chunk_lower) and len(chunk) < 2000:
+                                print(f"      Skipping chunk {i+1} in {file_name} (license/legal detected)")
+                                continue
+                            # Call LLM to generate Q&A pair
+                            qa_pair = generate_qa_with_llm(ollama_client, chunk)
+                            qa_pair["source_repo"] = repo_name
+                            qa_pair["source_strategy"] = strategy_name
+                            qa_pair["source_file"] = file_name
+                            qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
+                            all_qa_pairs.append(qa_pair)
+            # Do not break; process all doc dirs and files
+
+    if not found_docs:
+        print(f"No documentation files found for {repo_name}. Skipping.")
+        return
+    if not all_qa_pairs:
+        print(f"No Q&A pairs generated for {repo_name}. Skipping output.")
+        return
 
     output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
     with open(output_file, 'w', encoding='utf-8') as f:
