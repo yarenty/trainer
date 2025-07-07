@@ -3,6 +3,8 @@ import json
 import re
 from typing import List, Dict, Tuple
 import glob
+import concurrent.futures
+from concurrent.futures import as_completed
 
 import ollama # Ensure this is at the top
 
@@ -48,6 +50,7 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
     Chunks text based on Markdown/reStructuredText-like headings.
     Combines smaller chunks to meet a minimum character count.
     """
+    MAX_CHUNKS = 10000
     # This regex attempts to capture content between headings.
     # It's a simplification and might need refinement for complex docs.
     # For RST, headings are typically underlined, so we look for lines followed by a line of symbols.
@@ -59,7 +62,6 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
     for i, chunk in enumerate(chunks):
         if not chunk.strip():
             continue
-        
         # If it's a heading, append it to the current_chunk if it's not empty, then start a new one
         if re.match(r'^[#=~-]+[ ]?.+\n[=~-]+\n|^#+ .+\n', chunk):
             if current_chunk:
@@ -70,10 +72,11 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
             if len(current_chunk) >= min_chars:
                 processed_chunks.append(current_chunk.strip())
                 current_chunk = ""
-    
+        if len(processed_chunks) > MAX_CHUNKS:
+            print(f"[ERROR] chunk_by_headings: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            return []
     if current_chunk:
         processed_chunks.append(current_chunk.strip())
-
     # A second pass to merge very small chunks that might have been split by the regex
     final_chunks = []
     temp_chunk = ""
@@ -86,9 +89,15 @@ def chunk_by_headings(text: str, min_chars: int = 200) -> List[str]:
             else:
                 final_chunks.append(temp_chunk)
                 temp_chunk = chunk
+        if len(final_chunks) > MAX_CHUNKS:
+            print(f"[ERROR] chunk_by_headings: Too many chunks after merge (> {MAX_CHUNKS}). Aborting.")
+            return []
     if temp_chunk:
         final_chunks.append(temp_chunk)
-
+    print(f"[DEBUG] chunk_by_headings: Generated {len(final_chunks)} chunks. First chunk preview: {final_chunks[0][:100] if final_chunks else 'EMPTY'}")
+    if len(final_chunks) > MAX_CHUNKS:
+        print(f"[ERROR] chunk_by_headings: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        return []
     return [c for c in final_chunks if c]
 
 
@@ -96,8 +105,8 @@ def chunk_by_paragraphs(text: str, min_chars: int = 100) -> List[str]:
     """
     Chunks text by paragraphs (double newline), merging small paragraphs.
     """
+    MAX_CHUNKS = 10000
     paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
-    
     chunks = []
     current_chunk = ""
     for para in paragraphs:
@@ -109,23 +118,33 @@ def chunk_by_paragraphs(text: str, min_chars: int = 100) -> List[str]:
             else:
                 chunks.append(current_chunk)
                 current_chunk = para
+        if len(chunks) > MAX_CHUNKS:
+            print(f"[ERROR] chunk_by_paragraphs: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            return []
     if current_chunk:
         chunks.append(current_chunk)
-    
+    print(f"[DEBUG] chunk_by_paragraphs: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
+    if len(chunks) > MAX_CHUNKS:
+        print(f"[ERROR] chunk_by_paragraphs: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        return []
     return [c for c in chunks if c]
 
 def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
     """
     Chunks text into fixed-size segments with optional overlap.
     """
+    MAX_CHUNKS = 10000
+    if overlap >= chunk_size:
+        print(f"[ERROR] chunk_by_fixed_size: overlap ({overlap}) >= chunk_size ({chunk_size}). Aborting.")
+        return []
     chunks = []
     start = 0
-    while start < len(text):
+    text_len = len(text)
+    while start < text_len:
         end = start + chunk_size
-        if end > len(text):
+        if end > text_len:
             chunks.append(text[start:])
             break
-        
         # Try to end on a natural break (e.g., end of sentence/paragraph)
         break_points = [
             text.rfind('\n\n', start, end),
@@ -134,18 +153,27 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
             text.rfind('?', start, end)
         ]
         break_points = [bp for bp in break_points if bp != -1 and bp > start]
-        
         if break_points:
             split_at = max(break_points) + 1
+            if split_at <= start:
+                print(f"[WARN] chunk_by_fixed_size: split_at ({split_at}) <= start ({start}). Advancing by chunk_size.")
+                split_at = end
             chunks.append(text[start:split_at].strip())
-            start = split_at - overlap
+            new_start = split_at - overlap
         else:
             chunks.append(text[start:end].strip())
-            start = end - overlap
-        
-        if start < 0: # Ensure start doesn't go negative due to overlap
-            start = 0
-            
+            new_start = end - overlap
+        if new_start <= start:
+            print(f"[ERROR] chunk_by_fixed_size: new_start ({new_start}) <= start ({start}). Aborting to prevent infinite loop.")
+            break
+        start = new_start
+        if len(chunks) > MAX_CHUNKS:
+            print(f"[ERROR] chunk_by_fixed_size: Too many chunks (> {MAX_CHUNKS}). Aborting.")
+            return []
+    print(f"[DEBUG] chunk_by_fixed_size: Generated {len(chunks)} chunks. First chunk preview: {chunks[0][:100] if chunks else 'EMPTY'}")
+    if len(chunks) > MAX_CHUNKS:
+        print(f"[ERROR] chunk_by_fixed_size: Final chunk count exceeds {MAX_CHUNKS}. Returning empty list.")
+        return []
     return [c for c in chunks if c]
 
 def extract_json_from_response(text: str) -> str:
@@ -264,140 +292,164 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
             "answer": f"Error: Could not generate answer. Original chunk: {chunk[:200]}..."
         }
 
+def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies, clean_text, generate_qa_with_llm, ollama_client, output_file):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+    except Exception as e:
+        print(f"Could not read file {file_path}: {e}")
+        return
+    cleaned_content = clean_text(file_content)
+    if not cleaned_content.strip():
+        print(f"  Cleaned content is empty for {file_name}. Skipping.")
+        return
+    # Skip if the cleaned content is likely a license or legal text
+    if ("copyright" in cleaned_content.lower() or "license" in cleaned_content.lower()) and len(cleaned_content) < 2000:
+        print(f"  Skipping file (license/legal detected): {file_name}")
+        return
+    for strategy_name, chunk_func in chunking_strategies.items():
+        print(f"    Applying chunking strategy: {strategy_name} to {file_name}")
+        chunks = chunk_func(cleaned_content)
+        print(f"    [DEBUG] {strategy_name}: {len(chunks)} chunks for {file_name}")
+        if not chunks:
+            print(f"    [WARN] {strategy_name}: No chunks generated for {file_name}. Skipping this strategy.")
+            continue
+        if len(chunks) > 10000:
+            print(f"    [ERROR] {strategy_name}: Too many chunks ({len(chunks)}) for {file_name}. Skipping this strategy.")
+            continue
+        for i, chunk in enumerate(chunks):
+            if not chunk.strip():
+                continue
+            # Skip chunks that are likely license/legal text
+            chunk_lower = chunk.lower()
+            if ("copyright" in chunk_lower or "license" in chunk_lower) and len(chunk) < 2000:
+                print(f"      Skipping chunk {i+1} in {file_name} (license/legal detected)")
+                continue
+            print(f"      [DEBUG] Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
+            qa_pair = generate_qa_with_llm(ollama_client, chunk)
+            qa_pair["source_repo"] = repo_name
+            qa_pair["source_strategy"] = strategy_name
+            qa_pair["source_file"] = file_name
+            qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
+            with open(output_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+
+def process_single_code_file(file_path, file_name, repo_name, code_chunking_strategy, clean_text, generate_qa_with_llm, ollama_client, output_file):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+    except Exception as e:
+        print(f"Could not read code file {file_path}: {e}")
+        return
+    cleaned_content = clean_text(file_content)
+    if not cleaned_content.strip():
+        print(f"  Cleaned content is empty for code file {file_name}. Skipping.")
+        return
+    print(f"    Chunking code file: {file_name}")
+    chunks = code_chunking_strategy(cleaned_content)
+    print(f"    [DEBUG] code_fixed_size_500_50: {len(chunks)} chunks for {file_name}")
+    if not chunks:
+        print(f"    [WARN] code_fixed_size_500_50: No chunks generated for {file_name}. Skipping.")
+        return
+    if len(chunks) > 10000:
+        print(f"    [ERROR] code_fixed_size_500_50: Too many chunks ({len(chunks)}) for {file_name}. Skipping.")
+        return
+    for i, chunk in enumerate(chunks):
+        if not chunk.strip():
+            continue
+        print(f"      [DEBUG] Processing chunk {i+1}/{len(chunks)} (size: {len(chunk)})")
+        qa_pair = generate_qa_with_llm(ollama_client, chunk)
+        qa_pair["source_repo"] = repo_name
+        qa_pair["source_strategy"] = "code_fixed_size_500_50"
+        qa_pair["source_file"] = file_name
+        qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
+        with open(output_file, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+
 def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
     """
-    Processes documentation and Rust source files for a single repository, skipping irrelevant files and generating Q&A for each doc/code file.
+    Processes documentation and code source files for a single repository, skipping irrelevant files and generating Q&A for each doc/code file.
     Appends each Q&A pair to the output file immediately after generation.
     """
     print(f"\n--- Processing repository: {repo_name} ---")
-
     docs_source_dirs = [
         os.path.join(repo_path, "docs", "source"),
         os.path.join(repo_path, "docs"),
         # Add other potential documentation paths if known for specific repos
     ]
-
-    # Also include all .rs files in the repo (recursively), including src and examples directories
     code_source_dirs = [repo_path]
-    # Add src and examples directories if they exist and are not already in the list
     for subdir in ["src", "examples"]:
         subdir_path = os.path.join(repo_path, subdir)
         if os.path.exists(subdir_path) and os.path.isdir(subdir_path) and subdir_path not in code_source_dirs:
             code_source_dirs.append(subdir_path)
-
-    # Track processed files to avoid duplicates
     processed_code_files = set()
-
-    # Filenames to skip (case-insensitive)
     skip_files = {"license", "notice", "contributing", "code_of_conduct"}
     skip_exts = {".txt", ".md", ".rst"}  # Only skip by name, not by extension
-
-    # Define chunking strategies
     chunking_strategies = {
         "heading_based": lambda text: chunk_by_headings(text, min_chars=500),
         "paragraph_based": lambda text: chunk_by_paragraphs(text, min_chars=300),
         "fixed_size_500_50": lambda text: chunk_by_fixed_size(text, chunk_size=500, overlap=50),
     }
-    # For Rust code, use only fixed size chunking
-    rust_chunking_strategy = lambda text: chunk_by_fixed_size(text, chunk_size=500, overlap=50)
-
-    # Initialize Ollama client (uncomment if using Ollama)
+    code_chunking_strategy = lambda text: chunk_by_fixed_size(text, chunk_size=500, overlap=50)
+    code_file_extensions = {".rs", ".py", ".c", ".cpp", ".h", ".hpp"}
     ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
-
     found_docs = False
     output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
-    # Process documentation files
-    for doc_dir in docs_source_dirs:
-        if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
-            found_docs = True
-            for root, _, files in os.walk(doc_dir):
+    # Process documentation files concurrently
+    doc_futures = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        for doc_dir in docs_source_dirs:
+            if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
+                found_docs = True
+                for root, _, files in os.walk(doc_dir):
+                    for file_name in files:
+                        base_name = os.path.splitext(file_name)[0].lower()
+                        if base_name in skip_files:
+                            print(f"  Skipping file (by name): {file_name}")
+                            continue
+                        if not (file_name.endswith(".md") or file_name.endswith(".rst")):
+                            continue
+                        file_path = os.path.join(root, file_name)
+                        future = executor.submit(
+                            process_single_doc_file,
+                            file_path, file_name, repo_name, chunking_strategies,
+                            clean_text, generate_qa_with_llm, ollama_client, output_file
+                        )
+                        doc_futures.append((future, file_name))
+        for future, file_name in doc_futures:
+            try:
+                future.result(timeout=120)
+            except concurrent.futures.TimeoutError:
+                print(f"Timeout: Skipping {file_name} after 2 minutes.")
+            except Exception as e:
+                print(f"Error processing {file_name}: {e}")
+    # Process code source files concurrently
+    code_futures = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        for code_dir in code_source_dirs:
+            for root, _, files in os.walk(code_dir):
                 for file_name in files:
-                    # Skip irrelevant files by name
-                    base_name = os.path.splitext(file_name)[0].lower()
-                    if base_name in skip_files:
-                        print(f"  Skipping file (by name): {file_name}")
-                        continue
-                    # Only process .md and .rst files
-                    if not (file_name.endswith(".md") or file_name.endswith(".rst")):
+                    ext = os.path.splitext(file_name)[1].lower()
+                    if ext not in code_file_extensions:
                         continue
                     file_path = os.path.join(root, file_name)
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as f:
-                            file_content = f.read()
-                    except Exception as e:
-                        print(f"Could not read file {file_path}: {e}")
+                    abs_path = os.path.abspath(file_path)
+                    if abs_path in processed_code_files:
                         continue
-
-                    cleaned_content = clean_text(file_content)
-                    if not cleaned_content.strip():
-                        print(f"  Cleaned content is empty for {file_name}. Skipping.")
-                        continue
-
-                    # Skip if the cleaned content is likely a license or legal text
-                    if ("copyright" in cleaned_content.lower() or "license" in cleaned_content.lower()) and len(cleaned_content) < 2000:
-                        print(f"  Skipping file (license/legal detected): {file_name}")
-                        continue
-
-                    for strategy_name, chunk_func in chunking_strategies.items():
-                        print(f"    Applying chunking strategy: {strategy_name} to {file_name}")
-                        chunks = chunk_func(cleaned_content)
-                        print(f"    Generated {len(chunks)} chunks for strategy '{strategy_name}' in file '{file_name}'.")
-
-                        for i, chunk in enumerate(chunks):
-                            if not chunk.strip():
-                                continue
-                            # Skip chunks that are likely license/legal text
-                            chunk_lower = chunk.lower()
-                            if ("copyright" in chunk_lower or "license" in chunk_lower) and len(chunk) < 2000:
-                                print(f"      Skipping chunk {i+1} in {file_name} (license/legal detected)")
-                                continue
-                            # Call LLM to generate Q&A pair
-                            qa_pair = generate_qa_with_llm(ollama_client, chunk)
-                            qa_pair["source_repo"] = repo_name
-                            qa_pair["source_strategy"] = strategy_name
-                            qa_pair["source_file"] = file_name
-                            qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-                            # Append to output file immediately
-                            with open(output_file, 'a', encoding='utf-8') as f:
-                                f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
-    # Process Rust source files
-    for code_dir in code_source_dirs:
-        for root, _, files in os.walk(code_dir):
-            for file_name in files:
-                if not file_name.endswith(".rs"):
-                    continue
-                file_path = os.path.join(root, file_name)
-                # Avoid duplicate processing
-                abs_path = os.path.abspath(file_path)
-                if abs_path in processed_code_files:
-                    continue
-                processed_code_files.add(abs_path)
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        file_content = f.read()
-                except Exception as e:
-                    print(f"Could not read Rust file {file_path}: {e}")
-                    continue
-                cleaned_content = clean_text(file_content)
-                if not cleaned_content.strip():
-                    print(f"  Cleaned content is empty for Rust file {file_name}. Skipping.")
-                    continue
-                # Optionally skip test or generated files (by path or name)
-                # if 'test' in file_name.lower() or 'generated' in file_name.lower():
-                #     continue
-                print(f"    Chunking Rust file: {file_name}")
-                chunks = rust_chunking_strategy(cleaned_content)
-                print(f"    Generated {len(chunks)} chunks for Rust file '{file_name}'.")
-                for i, chunk in enumerate(chunks):
-                    if not chunk.strip():
-                        continue
-                    qa_pair = generate_qa_with_llm(ollama_client, chunk)
-                    qa_pair["source_repo"] = repo_name
-                    qa_pair["source_strategy"] = "rust_fixed_size_500_50"
-                    qa_pair["source_file"] = file_name
-                    qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-                    with open(output_file, 'a', encoding='utf-8') as f:
-                        f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+                    processed_code_files.add(abs_path)
+                    future = executor.submit(
+                        process_single_code_file,
+                        file_path, file_name, repo_name, code_chunking_strategy,
+                        clean_text, generate_qa_with_llm, ollama_client, output_file
+                    )
+                    code_futures.append((future, file_name))
+        for future, file_name in code_futures:
+            try:
+                future.result(timeout=120)
+            except concurrent.futures.TimeoutError:
+                print(f"Timeout: Skipping code file {file_name} after 2 minutes.")
+            except Exception as e:
+                print(f"Error processing code file {file_name}: {e}")
     if not found_docs:
         print(f"No documentation files found for {repo_name}. Skipping.")
         return
