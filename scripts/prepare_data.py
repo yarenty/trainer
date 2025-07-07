@@ -336,8 +336,15 @@ def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies
             qa_pair["source_strategy"] = strategy_name
             qa_pair["source_file"] = file_name
             qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-            with open(output_file, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+            # Only write if not a JSON error
+            if (
+                isinstance(qa_pair, dict)
+                and 'question' in qa_pair and 'answer' in qa_pair
+                and 'Error: LLM output was not valid JSON' not in qa_pair['question']
+                and 'Error: LLM output was not valid JSON' not in qa_pair['answer']
+            ):
+                with open(output_file, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
 
 def process_single_code_file(file_path, file_name, repo_name, code_chunking_strategy, clean_text, generate_qa_with_llm, ollama_client, output_file):
     try:
@@ -368,8 +375,15 @@ def process_single_code_file(file_path, file_name, repo_name, code_chunking_stra
         qa_pair["source_strategy"] = "code_fixed_size_500_50"
         qa_pair["source_file"] = file_name
         qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-        with open(output_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+        # Only write if not a JSON error
+        if (
+            isinstance(qa_pair, dict)
+            and 'question' in qa_pair and 'answer' in qa_pair
+            and 'Error: LLM output was not valid JSON' not in qa_pair['question']
+            and 'Error: LLM output was not valid JSON' not in qa_pair['answer']
+        ):
+            with open(output_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
 
 def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
     """
