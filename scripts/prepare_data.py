@@ -23,12 +23,12 @@ def clean_text(text: str) -> str:
     text = re.sub(r'^\s*[-=~`]+\s*$', '', text, flags=re.MULTILINE)
 
     # Remove Markdown bold/italic (**, __, *, _)
-    text = re.sub(r'(\*\*|__)(.*?)\1', r'\2', text)
+    text = re.sub(r'(\**|__)(.*?)\1', r'\2', text)
     text = re.sub(r'(\*|_)(.*?)\1', r'\2', text)
 
     # Remove Markdown links [text](url) and images ![alt](url)
-    text = re.sub(r'!\[.*?\]\(.*?\)', '', text)
-    text = re.sub(r'\[.*?\]\(.*?\)', '', text)
+    text = re.sub(r'!\[.*?\]\(.*\)', '', text)
+    text = re.sub(r'\[.*?\]\(.*\)', '', text)
 
     # Remove code blocks (```...``` or ```python...```)
     text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
@@ -173,7 +173,7 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
         # return qa_pair
         
         # Placeholder for demonstration without actual LLM call
-        print(f"--- Simulating LLM call for chunk (first 100 chars): {chunk[:100]}...")
+        # print(f"--- Simulating LLM call for chunk (first 100 chars): {chunk[:100]}...")
         return {
             "question": f"What is the main topic of this section regarding DataFusion?",
             "answer": f"This section discusses {chunk.split('.')[0].strip()} in DataFusion."
@@ -186,23 +186,44 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
             "answer": f"Error: Could not generate answer. Original chunk: {chunk[:200]}..."
         }
 
-def main():
-    source_dir = "/opt/ml/trainer/sources/datafusion/docs/source"
-    output_file = "/opt/ml/trainer/data/datafusion_qa.jsonl"
+def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
+    """
+    Processes documentation for a single repository.
+    """
+    print(f"\n--- Processing repository: {repo_name} ---")
     
+    docs_source_dirs = [
+        os.path.join(repo_path, "docs", "source"),
+        os.path.join(repo_path, "docs"),
+        # Add other potential documentation paths if known for specific repos
+    ]
+
     all_docs_content = ""
-    for root, _, files in os.walk(source_dir):
-        for file_name in files:
-            if file_name.endswith((".rst", ".md")):
-                file_path = os.path.join(root, file_name)
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        all_docs_content += f.read() + "\n\n---\n\n" # Separator between files
-                except Exception as e:
-                    print(f"Could not read file {file_path}: {e}")
-                    continue
+    found_docs = False
+    for doc_dir in docs_source_dirs:
+        if os.path.exists(doc_dir) and os.path.isdir(doc_dir):
+            found_docs = True
+            for root, _, files in os.walk(doc_dir):
+                for file_name in files:
+                    if file_name.endswith((".rst", ".md")):
+                        file_path = os.path.join(root, file_name)
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                all_docs_content += f.read() + "\n\n---\n\n" # Separator between files
+                        except Exception as e:
+                            print(f"Could not read file {file_path}: {e}")
+                            continue
+            if all_docs_content.strip(): # If content found in one, no need to check others
+                break
+    
+    if not found_docs or not all_docs_content.strip():
+        print(f"No documentation files found or content is empty for {repo_name}. Skipping.")
+        return
 
     cleaned_content = clean_text(all_docs_content)
+    if not cleaned_content.strip():
+        print(f"Cleaned content is empty for {repo_name}. Skipping.")
+        return
 
     # Define chunking strategies
     chunking_strategies = {
@@ -217,30 +238,46 @@ def main():
     # ollama_client = ollama.Client(host='http://localhost:11434') # Adjust host if needed
 
     for strategy_name, chunk_func in chunking_strategies.items():
-        print(f"\n--- Applying chunking strategy: {strategy_name} ---")
+        print(f"  Applying chunking strategy: {strategy_name}")
         chunks = chunk_func(cleaned_content)
-        print(f"Generated {len(chunks)} chunks for strategy '{strategy_name}'.")
+        print(f"  Generated {len(chunks)} chunks for strategy '{strategy_name}'.")
 
         for i, chunk in enumerate(chunks):
             if not chunk.strip():
                 continue
-            print(f"Processing chunk {i+1}/{len(chunks)} from strategy '{strategy_name}'...")
+            # print(f"  Processing chunk {i+1}/{len(chunks)} from strategy '{strategy_name}'...")
             
             # Call LLM to generate Q&A pair
             # Pass the ollama_client if uncommented above
             qa_pair = generate_qa_with_llm(None, chunk) # Replace None with ollama_client if using
             
+            qa_pair["source_repo"] = repo_name
             qa_pair["source_strategy"] = strategy_name
             qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
             all_qa_pairs.append(qa_pair)
 
-    # Save all generated Q&A pairs to a JSONL file
+    output_file = os.path.join(output_base_dir, f"{repo_name}_qa.jsonl")
     with open(output_file, 'w', encoding='utf-8') as f:
         for qa in all_qa_pairs:
             f.write(json.dumps(qa, ensure_ascii=False) + '\n')
 
-    print(f"\nData preparation complete. Generated {len(all_qa_pairs)} Q&A pairs.")
-    print(f"Output saved to: {output_file}")
+    print(f"  Generated {len(all_qa_pairs)} Q&A pairs for {repo_name}. Output saved to: {output_file}")
+
+
+def main():
+    base_sources_dir = "/opt/ml/trainer/sources"
+    output_data_dir = "/opt/ml/trainer/data"
+    
+    # Ensure output directory exists
+    os.makedirs(output_data_dir, exist_ok=True)
+
+    # Iterate through each subdirectory in base_sources_dir
+    for item in os.listdir(base_sources_dir):
+        item_path = os.path.join(base_sources_dir, item)
+        if os.path.isdir(item_path):
+            process_repository_docs(item, item_path, output_data_dir)
+
+    print("\nAll repository documentation processing complete.")
 
 if __name__ == "__main__":
     main()
