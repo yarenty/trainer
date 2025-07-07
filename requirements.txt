@@ -9,4 +9,4 @@ datasets
 fastparquet
 pyarrow
 uv
-ollama # Optional, for direct Ollama interaction
+ollama

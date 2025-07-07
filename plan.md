@@ -59,3 +59,49 @@ This document outlines the step-by-step plan for setting up a Python project, pr
 -   **Methods**:
     1.  **Qualitative Evaluation**: Interact with the model via the Ollama interface, asking questions about DataFusion concepts, API usage, and operations. Compare responses against original documentation and the base Llama 3.2 model.
     2.  **Quantitative Evaluation (Optional)**: Develop a separate test set of DataFusion-specific questions and expected answers. Use metrics (e.g., ROUGE, BLEU, or custom semantic similarity) to automate evaluation of the model's generated responses.
+
+# Data Preparation and Fine-Tuning Plan
+
+## 1. Data Preparation Pipeline
+
+### Step 1: Collect Source Files
+- Traverse each repository in the sources directory.
+- Collect documentation files (`.md`, `.rst`) from `docs/` and `docs/source/`.
+- Collect code files (`.rs`, `.py`, `.c`, `.cpp`, `.h`, `.hpp`) from the repository root, `src/`, and `examples/`.
+- Easily extendable to more code file types as needed.
+
+### Step 2: Clean and Chunk Text
+- Clean each file's content to remove formatting, markup, and boilerplate using `clean_text`.
+- Chunk documentation using multiple strategies:
+  - By headings
+  - By paragraphs
+  - By fixed size (with overlap)
+- Chunk code files by fixed size (with overlap).
+- Safety checks prevent infinite loops and excessive memory usage.
+
+### Step 3: Generate Q&A Pairs
+- For each chunk, generate a question and answer pair using an LLM (Ollama API).
+- Each Q&A pair includes metadata: source repo, file, chunking strategy, and a preview of the original chunk.
+- Errors and timeouts are logged and handled gracefully.
+
+### Step 4: Write Output
+- Each Q&A pair is appended to a JSONL file in the data directory, named per repository.
+- Logging is used throughout for debug, info, warnings, and errors.
+- Processing is concurrent (up to 8 files at a time) for both docs and code, using a single thread pool.
+
+## 2. Fine-Tuning (General Outline)
+
+1. **Aggregate Q&A Data**
+   - Combine all generated JSONL files as needed for your fine-tuning dataset.
+2. **Preprocess for Model**
+   - Format the Q&A pairs as required by your fine-tuning framework (e.g., OpenAI, HuggingFace, etc.).
+3. **Run Fine-Tuning**
+   - Use the prepared dataset to fine-tune your target LLM.
+   - Monitor training and validate results.
+4. **Evaluate and Iterate**
+   - Evaluate the fine-tuned model on held-out Q&A pairs or real-world queries.
+   - Refine data preparation or fine-tuning parameters as needed.
+
+---
+
+*This plan reflects the current working pipeline in `scripts/prepare_data.py` and is ready for extension or automation as your project evolves.*
