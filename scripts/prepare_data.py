@@ -183,36 +183,236 @@ def chunk_by_fixed_size(text: str, chunk_size: int = 500, overlap: int = 50) -> 
         return []
     return [c for c in chunks if c]
 
-def extract_json_from_response(text: str) -> str:
+def convert_yaml_to_json(text: str) -> str:
     """
-    Extract JSON from a Markdown code block or from the first {...} block in the string.
+    Convert YAML-style content with | characters to proper JSON format.
     """
-    # Try to extract JSON from a Markdown code block
-    code_block = re.search(r'```(?:json)?\s*([\s\S]+?)\s*```', text)
-    if code_block:
-        return code_block.group(1).strip()
-    # Fallback: extract first {...} block
-    brace_block = re.search(r'({[\s\S]+})', text)
-    if brace_block:
-        return brace_block.group(1).strip()
-    return text.strip()
+    logging.debug(f"Converting YAML to JSON. Input: {text[:200]}...")
+    
+    lines = text.split('\n')
+    result_lines = []
+    in_yaml_block = False
+    yaml_content = []
+    yaml_key = None
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i]
+        
+        # Check if this line starts a YAML block
+        if '"answer":' in line and '|' in line:
+            # Extract the key and start collecting YAML content
+            parts = line.split('"answer":', 1)
+            if len(parts) == 2:
+                prefix = parts[0] + '"answer":'
+                value_part = parts[1].strip()
+                
+                if value_part.startswith('|'):
+                    in_yaml_block = True
+                    yaml_key = prefix
+                    yaml_content = []
+                    i += 1
+                    continue
+        
+        if in_yaml_block:
+            # Look ahead to find where the YAML block ends
+            # It ends when we hit a line that looks like it's part of the JSON structure
+            if (line.strip().startswith('"') and line.strip().endswith('"') and 
+                ('"question":' in line or '"source_' in line or line.strip() == '"')):
+                # End of YAML block, convert to JSON
+                in_yaml_block = False
+                yaml_text = '\n'.join(yaml_content).strip()
+                # Properly escape the content for JSON
+                json_text = escape_for_json(yaml_text)
+                result_lines.append(f'{yaml_key} "{json_text}"')
+                result_lines.append(line)
+            elif line.strip() == '':
+                # Empty line in YAML block
+                yaml_content.append('')
+            else:
+                # Collect YAML content
+                yaml_content.append(line)
+        else:
+            result_lines.append(line)
+        
+        i += 1
+    
+    # If we're still in a YAML block at the end, close it
+    if in_yaml_block:
+        yaml_text = '\n'.join(yaml_content).strip()
+        json_text = escape_for_json(yaml_text)
+        result_lines.append(f'{yaml_key} "{json_text}"')
+    
+    result = '\n'.join(result_lines)
+    logging.debug(f"YAML conversion result: {result[:200]}...")
+    return result
+
+def escape_for_json(text: str) -> str:
+    """
+    Properly escape text for JSON string inclusion.
+    """
+    # Escape backslashes first
+    text = text.replace('\\', '\\\\')
+    # Escape quotes
+    text = text.replace('"', '\\"')
+    # Escape newlines
+    text = text.replace('\n', '\\n')
+    # Escape carriage returns
+    text = text.replace('\r', '\\r')
+    # Escape tabs
+    text = text.replace('\t', '\\t')
+    # Escape form feeds
+    text = text.replace('\f', '\\f')
+    # Escape backspace
+    text = text.replace('\b', '\\b')
+    
+    return text
+
+def extract_qa_from_response(text: str) -> Dict[str, str]:
+    """
+    Extract question and answer directly from LLM response using regex patterns.
+    This bypasses JSON parsing issues and directly extracts the content we need.
+    """
+    logging.debug(f"Extracting Q&A directly from response: {text[:200]}...")
+    
+    # Try to extract question and answer using various patterns
+    patterns = [
+        # Pattern 1: Standard JSON format
+        (r'"question":\s*"([^"]*)"', r'"answer":\s*\|(.*?)(?=\s*"|$)', re.DOTALL),
+        # Pattern 2: JSON with escaped quotes
+        (r'"question":\s*"([^"]*)"', r'"answer":\s*"([^"]*)"', re.DOTALL),
+        # Pattern 3: YAML-style with | character
+        (r'"question":\s*"([^"]*)"', r'"answer":\s*\|(.*?)(?=\s*"|$)', re.DOTALL),
+        # Pattern 4: Question and answer on separate lines
+        (r'question["\s]*:["\s]*([^"\n]+)', r'answer["\s]*:["\s]*\|(.*?)(?=\n\s*["\w]|$)', re.DOTALL),
+        # Pattern 5: More flexible pattern
+        (r'question["\s]*:["\s]*([^"\n]+)', r'answer["\s]*:["\s]*([^"\n]+)', re.DOTALL),
+    ]
+    
+    for question_pattern, answer_pattern, flags in patterns:
+        try:
+            question_match = re.search(question_pattern, text, flags)
+            answer_match = re.search(answer_pattern, text, flags)
+            
+            if question_match and answer_match:
+                question = question_match.group(1).strip()
+                answer = answer_match.group(1).strip()
+                
+                # Clean up the answer
+                answer = clean_answer_text(answer)
+                
+                if question and answer:
+                    logging.debug(f"Successfully extracted Q&A using pattern: {question_pattern[:50]}...")
+                    return {
+                        "question": question,
+                        "answer": answer
+                    }
+        except Exception as e:
+            logging.debug(f"Pattern failed: {e}")
+            continue
+    
+    # Fallback: try to extract any text that looks like a question and answer
+    logging.debug("Trying fallback extraction...")
+    
+    # Look for lines that might be questions (end with ?)
+    lines = text.split('\n')
+    question = None
+    answer_lines = []
+    in_answer = False
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Look for a question
+        if not question and ('?' in line or line.lower().startswith('question') or line.lower().startswith('how') or line.lower().startswith('what')):
+            # Extract question from various formats
+            if 'question' in line.lower():
+                question = re.sub(r'^.*?question["\s]*:["\s]*', '', line, flags=re.IGNORECASE).strip()
+            else:
+                question = line
+            continue
+            
+        # If we found a question, collect answer lines
+        if question and not in_answer:
+            if 'answer' in line.lower() or '|' in line:
+                in_answer = True
+                # Skip the answer header line
+                continue
+                
+        if in_answer:
+            # Stop if we hit another JSON field or the end
+            if line.startswith('"') and ('"question":' in line or '"source_' in line):
+                break
+            answer_lines.append(line)
+    
+    if question and answer_lines:
+        answer = clean_answer_text('\n'.join(answer_lines))
+        if answer:
+            logging.debug("Successfully extracted Q&A using fallback method")
+            return {
+                "question": question,
+                "answer": answer
+            }
+    
+    logging.debug("Failed to extract Q&A from response")
+    return None
+
+def clean_answer_text(answer: str) -> str:
+    """
+    Clean up answer text by removing unwanted formatting and fixing common issues.
+    """
+    # Remove leading/trailing whitespace
+    answer = answer.strip()
+    
+    # Remove YAML pipe characters if present
+    if answer.startswith('|'):
+        answer = answer[1:].strip()
+    
+    # Remove any remaining JSON artifacts
+    answer = re.sub(r'^\s*"', '', answer)
+    answer = re.sub(r'"\s*$', '', answer)
+    
+    # Clean up excessive whitespace
+    answer = re.sub(r'\n\s*\n', '\n\n', answer)
+    
+    return answer
 
 def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Dict[str, str]:
     """
     Generates a question and answer pair for a given text chunk using an LLM.
     This function is a placeholder and requires an actual LLM client.
     """
-    prompt = f"""Given the following text, generate one concise question and its corresponding answer.
-    The question should be directly answerable from the text.
-    Format your response as a JSON object with 'question' and 'answer' keys.
+    prompt = f"""Given this code/documentation text, create a comprehensive Q&A pair for fine-tuning a coding assistant.
 
-    Text:
-    ---
-    {chunk}
-    ---
+Question: Ask a practical question that a developer might have about this code/concept. The question should be specific and actionable.
 
-    JSON:
-    """
+Answer: Provide a detailed, educational response that includes:
+1. Clear explanation of the concept/code and its purpose
+2. Code examples showing practical usage (use markdown code blocks)
+3. Best practices, tips, or important considerations
+4. Common pitfalls to avoid (if applicable)
+5. Related concepts or alternatives (if relevant)
+
+CRITICAL: Your response must be valid JSON. Follow these rules:
+- Use ONLY the exact JSON format shown below
+- If you include code examples, use markdown code blocks (```code```)
+- Escape any quotes within the answer text with backslashes
+- Do NOT use YAML-style formatting (no | characters)
+- Do NOT use multi-line strings without proper escaping
+
+Text:
+---
+{chunk}
+---
+
+Respond with ONLY valid JSON in this exact format:
+{{
+  "question": "Your question here",
+  "answer": "Your detailed answer with code examples in markdown blocks. Escape any quotes with \\"
+}}
+"""
     
     try:
         # Explicitly ensure prompt is a string
@@ -225,7 +425,6 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
 
         # The actual Ollama API call
         response = client.chat(model=model_name, messages=messages_to_send)
-
 
         # Try to extract the content from the response object
         content = None
@@ -255,28 +454,34 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
             logging.debug("Unknown response structure from Ollama client. Using str(response)")
             content = str(response)
 
-        # Now parse content as JSON if it's a string
+        # Try to extract Q&A directly from the response
         if isinstance(content, str):
-            content = extract_json_from_response(content)
-            try:
-                qa_pair = json.loads(content)
-            except json.JSONDecodeError as e:
-                logging.error(f"LLM output was not valid JSON. Details: {e}")
-                logging.error(f"Problematic content: {content}")
+            qa_pair = extract_qa_from_response(content)
+            if qa_pair:
+                logging.debug("Successfully extracted Q&A pair directly from response")
+                return qa_pair
+            else:
+                logging.error("Failed to extract Q&A from response")
                 return {
-                    "question": "Error: LLM output was not valid JSON.",
-                    "answer": f"Error: LLM output was not valid JSON. Original chunk: {chunk[:200]}..."
+                    "question": "Error: Could not extract question from response.",
+                    "answer": f"Error: Could not extract answer from response. Original chunk: {chunk[:200]}..."
                 }
         elif isinstance(content, dict):
-            qa_pair = content
+            # If content is already a dict, use it directly
+            if 'question' in content and 'answer' in content:
+                return content
+            else:
+                logging.error("Response dict missing question or answer")
+                return {
+                    "question": "Error: Response dict missing question or answer.",
+                    "answer": f"Error: Response dict missing question or answer. Original chunk: {chunk[:200]}..."
+                }
         else:
             logging.error("Unknown content type from Ollama client.")
             return {
                 "question": "Error: Unknown content type from Ollama client.",
                 "answer": f"Error: Unknown content type. Original chunk: {chunk[:200]}..."
             }
-
-        return qa_pair
 
     except TypeError as e:
         logging.error(f"Error: Caught TypeError during Ollama call: {e}")
@@ -296,6 +501,140 @@ def generate_qa_with_llm(client, chunk: str, model_name: str = "llama3.2") -> Di
             "question": "Error: Could not generate question.",
             "answer": f"Error: Could not generate answer. Original chunk: {chunk[:200]}..."
         }
+
+def create_fallback_qa(chunk: str) -> Dict[str, str]:
+    """
+    Create a fallback Q&A pair when JSON parsing fails.
+    """
+    try:
+        # Extract a simple question and answer from the chunk
+        lines = chunk.split('\n')
+        first_line = lines[0].strip() if lines else ""
+        
+        # Create a simple question
+        if "fn " in chunk:
+            question = "What does this function do and how is it used?"
+        elif "struct " in chunk:
+            question = "What is this struct and what are its components?"
+        elif "impl " in chunk:
+            question = "What does this implementation provide?"
+        else:
+            question = "What is the purpose of this code?"
+        
+        # Create a simple answer
+        answer = f"This code appears to be related to: {first_line[:100]}... "
+        answer += "Please refer to the original documentation for complete details and usage examples."
+        
+        return {
+            "question": question,
+            "answer": answer
+        }
+    except Exception as e:
+        logging.error(f"Error creating fallback Q&A: {e}")
+        return None
+
+def enhance_answer(qa_pair: dict, chunk: str, ollama_client, model_name: str = "llama3.2") -> dict:
+    """
+    Post-process Q&A pair to ensure answer quality and enhance brief answers.
+    """
+    if not isinstance(qa_pair, dict) or 'question' not in qa_pair or 'answer' not in qa_pair:
+        return qa_pair
+    
+    answer = qa_pair['answer']
+    
+    # Check if answer needs enhancement
+    needs_enhancement = (
+        len(answer) < 300 or  # Too short
+        answer.count('.') < 3 or  # Too few sentences
+        ('```' not in answer and '`' not in answer) or  # No code examples
+        answer.count('\n') < 2  # Too few line breaks
+    )
+    
+    if needs_enhancement:
+        logging.info(f"Enhancing brief answer for question: {qa_pair['question'][:100]}...")
+        
+        enhancement_prompt = f"""The following answer is too brief. Please enhance it with more details, code examples, and educational content.
+
+Question: {qa_pair['question']}
+Current Answer: {answer}
+
+Original Context:
+{chunk}
+
+Please provide a comprehensive, enhanced answer that includes:
+1. More detailed explanation
+2. Code examples or usage patterns (use markdown code blocks)
+3. Best practices or tips
+4. Common pitfalls or considerations
+5. Related concepts if applicable
+
+IMPORTANT: Respond with ONLY the enhanced answer text. Do not include JSON formatting or quotes around the answer.
+
+Enhanced Answer:"""
+
+        try:
+            messages_to_send = [{'role': 'user', 'content': enhancement_prompt}]
+            response = ollama_client.chat(model=model_name, messages=messages_to_send)
+            
+            # Extract content from response
+            if hasattr(response, "message") and hasattr(response.message, "content"):
+                enhanced_answer = response.message.content
+            elif hasattr(response, "content"):
+                enhanced_answer = response.content
+            else:
+                enhanced_answer = str(response)
+            
+            # Clean up the enhanced answer
+            enhanced_answer = enhanced_answer.strip()
+            if enhanced_answer.startswith("Enhanced Answer:"):
+                enhanced_answer = enhanced_answer[len("Enhanced Answer:"):].strip()
+            
+            # Remove any JSON formatting that might have been included
+            if enhanced_answer.startswith('"') and enhanced_answer.endswith('"'):
+                enhanced_answer = enhanced_answer[1:-1]
+            
+            if len(enhanced_answer) > len(answer):
+                qa_pair['answer'] = enhanced_answer
+                logging.info(f"Answer enhanced from {len(answer)} to {len(enhanced_answer)} characters")
+            else:
+                logging.warning("Enhanced answer was not longer than original, keeping original")
+                
+        except Exception as e:
+            logging.error(f"Error enhancing answer: {e}")
+            # Keep original answer if enhancement fails
+    
+    return qa_pair
+
+def validate_qa_quality(qa_pair: dict) -> bool:
+    """
+    Validate that Q&A pair meets quality standards for fine-tuning.
+    """
+    if not isinstance(qa_pair, dict):
+        return False
+    
+    question = qa_pair.get('question', '')
+    answer = qa_pair.get('answer', '')
+    
+    # Basic validation
+    if not question or not answer:
+        return False
+    
+    # Check for error messages
+    if 'Error:' in question or 'Error:' in answer:
+        return False
+    
+    # Check minimum quality standards
+    if len(answer) < 100:
+        return False
+    
+    if answer.count('.') < 2:
+        return False
+    
+    # Check for some educational content
+    educational_indicators = ['example', 'usage', 'function', 'method', 'class', 'parameter', 'return']
+    has_educational_content = any(indicator in answer.lower() for indicator in educational_indicators)
+    
+    return has_educational_content
 
 def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies, clean_text, generate_qa_with_llm, ollama_client, output_file):
     try:
@@ -336,15 +675,18 @@ def process_single_doc_file(file_path, file_name, repo_name, chunking_strategies
             qa_pair["source_strategy"] = strategy_name
             qa_pair["source_file"] = file_name
             qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-            # Only write if not a JSON error
+            # Enhance answer quality if needed
+            # qa_pair = enhance_answer(qa_pair, chunk, ollama_client)
+            # Write to file unless it contains error messages
             if (
                 isinstance(qa_pair, dict)
                 and 'question' in qa_pair and 'answer' in qa_pair
-                and 'Error: LLM output was not valid JSON' not in qa_pair['question']
-                and 'Error: LLM output was not valid JSON' not in qa_pair['answer']
+                and 'Error:' not in qa_pair['question']
             ):
                 with open(output_file, 'a', encoding='utf-8') as f:
                     f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+            else:
+                logging.warning(f"Skipping error Q&A pair for {file_name}")
 
 def process_single_code_file(file_path, file_name, repo_name, code_chunking_strategy, clean_text, generate_qa_with_llm, ollama_client, output_file):
     try:
@@ -375,15 +717,18 @@ def process_single_code_file(file_path, file_name, repo_name, code_chunking_stra
         qa_pair["source_strategy"] = "code_fixed_size_500_50"
         qa_pair["source_file"] = file_name
         qa_pair["original_chunk_preview"] = chunk[:200] + "..." if len(chunk) > 200 else chunk
-        # Only write if not a JSON error
+        # Enhance answer quality if needed
+        # qa_pair = enhance_answer(qa_pair, chunk, ollama_client)
+        # Write to file unless it contains error messages
         if (
             isinstance(qa_pair, dict)
             and 'question' in qa_pair and 'answer' in qa_pair
-            and 'Error: LLM output was not valid JSON' not in qa_pair['question']
-            and 'Error: LLM output was not valid JSON' not in qa_pair['answer']
+            and 'Error:' not in qa_pair['question']
         ):
             with open(output_file, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(qa_pair, ensure_ascii=False) + '\n')
+        else:
+            logging.warning(f"Skipping error Q&A pair for {file_name}")
 
 def process_repository_docs(repo_name: str, repo_path: str, output_base_dir: str):
     """
