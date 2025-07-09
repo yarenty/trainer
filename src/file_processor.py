@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
+import threading
 
 from text_cleaner import TextCleaner
 from chunker import Chunker
@@ -36,6 +37,7 @@ class FileProcessor:
         self.chunker = Chunker()
         self.llm_qa = LLM_QA(ollama_client, model_name)
         self.output_converter = OutputConverter()
+        self.output_lock = threading.Lock()
         
         self.logger = logging.getLogger(__name__)
     
@@ -114,13 +116,13 @@ class FileProcessor:
         self.logger.info(f"Found {len(doc_files)} documentation files")
         
         # Process files concurrently
-        all_qa_pairs = []
         files_processed = 0
+        qa_pairs_generated = 0
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all file processing tasks
             future_to_file = {
-                executor.submit(self._process_single_doc_file, file_path, repo_name): file_path
+                executor.submit(self._process_single_doc_file, file_path, repo_name, output_file): file_path
                 for file_path in doc_files
             }
             
@@ -128,25 +130,21 @@ class FileProcessor:
             for future in as_completed(future_to_file):
                 file_path = future_to_file[future]
                 try:
-                    qa_pairs = future.result()
-                    if qa_pairs:
-                        all_qa_pairs.extend(qa_pairs)
+                    result = future.result()
+                    if result:
                         files_processed += 1
-                        self.logger.debug(f"Processed {file_path}: {len(qa_pairs)} Q&A pairs")
+                        qa_pairs_generated += result
+                        self.logger.debug(f"Processed {file_path}: {result} Q&A pairs")
                 except Exception as e:
                     self.logger.error(f"Error processing {file_path}: {e}")
         
-        # Write results
-        self.logger.info(f"Generated {len(all_qa_pairs)} Q&A pairs for documentation files")
-        if all_qa_pairs:
-            self.output_converter.write_qa_pairs_to_jsonl(all_qa_pairs, output_file)
-            self.logger.info(f"Successfully wrote documentation Q&A pairs to {output_file}")
-        else:
+        self.logger.info(f"Generated {qa_pairs_generated} Q&A pairs for documentation files")
+        if qa_pairs_generated == 0:
             self.logger.warning(f"No Q&A pairs generated for documentation files")
         
         return {
             'files_processed': files_processed,
-            'qa_pairs_generated': len(all_qa_pairs),
+            'qa_pairs_generated': qa_pairs_generated,
             'files_found': len(doc_files)
         }
     
@@ -169,13 +167,13 @@ class FileProcessor:
         self.logger.info(f"Found {len(code_files)} code files")
         
         # Process files concurrently
-        all_qa_pairs = []
         files_processed = 0
+        qa_pairs_generated = 0
         
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Submit all file processing tasks
             future_to_file = {
-                executor.submit(self._process_single_code_file, file_path, repo_name): file_path
+                executor.submit(self._process_single_code_file, file_path, repo_name, output_file): file_path
                 for file_path in code_files
             }
             
@@ -183,25 +181,21 @@ class FileProcessor:
             for future in as_completed(future_to_file):
                 file_path = future_to_file[future]
                 try:
-                    qa_pairs = future.result()
-                    if qa_pairs:
-                        all_qa_pairs.extend(qa_pairs)
+                    result = future.result()
+                    if result:
                         files_processed += 1
-                        self.logger.debug(f"Processed {file_path}: {len(qa_pairs)} Q&A pairs")
+                        qa_pairs_generated += result
+                        self.logger.debug(f"Processed {file_path}: {result} Q&A pairs")
                 except Exception as e:
                     self.logger.error(f"Error processing {file_path}: {e}")
         
-        # Write results
-        self.logger.info(f"Generated {len(all_qa_pairs)} Q&A pairs for code files")
-        if all_qa_pairs:
-            self.output_converter.write_qa_pairs_to_jsonl(all_qa_pairs, output_file)
-            self.logger.info(f"Successfully wrote code Q&A pairs to {output_file}")
-        else:
+        self.logger.info(f"Generated {qa_pairs_generated} Q&A pairs for code files")
+        if qa_pairs_generated == 0:
             self.logger.warning(f"No Q&A pairs generated for code files")
         
         return {
             'files_processed': files_processed,
-            'qa_pairs_generated': len(all_qa_pairs),
+            'qa_pairs_generated': qa_pairs_generated,
             'files_found': len(code_files)
         }
     
@@ -256,7 +250,7 @@ class FileProcessor:
         
         return code_files
     
-    def _process_single_doc_file(self, file_path: str, repo_name: str) -> List[Dict[str, str]]:
+    def _process_single_doc_file(self, file_path: str, repo_name: str, output_file: str) -> int:
         """
         Process a single documentation file.
         
@@ -265,7 +259,7 @@ class FileProcessor:
             repo_name: Repository name
             
         Returns:
-            List of Q&A pairs
+            Number of Q&A pairs generated
         """
         try:
             # Read file
@@ -273,14 +267,14 @@ class FileProcessor:
                 content = f.read()
             
             if not content.strip():
-                return []
+                return 0
             
             # Clean text
             cleaned_content = self.text_cleaner.clean_text(content)
             cleaned_content = self.text_cleaner.remove_boilerplate(cleaned_content)
             
             if not cleaned_content.strip():
-                return []
+                return 0
             
             # Chunk text
             chunks = []
@@ -296,10 +290,10 @@ class FileProcessor:
                     break
             
             if not chunks:
-                return []
+                return 0
             
             # Generate Q&A pairs for each chunk
-            qa_pairs = []
+            count = 0
             self.logger.debug(f"Processing {len(chunks)} chunks from {file_path}")
             for i, chunk in enumerate(chunks):
                 if len(chunk.strip()) < 50:  # Skip very short chunks
@@ -314,21 +308,27 @@ class FileProcessor:
                         formatted_pair = self.output_converter.format_qa_pair_for_output(
                             qa_pair, file_path, repo_name
                         )
-                        qa_pairs.append(formatted_pair)
-                        self.logger.debug(f"Successfully generated Q&A pair for chunk {i+1}")
+                        with self.output_lock:
+                            with open(output_file, 'a', encoding='utf-8') as f:
+                                import json, os
+                                f.write(json.dumps(formatted_pair, ensure_ascii=False) + '\n')
+                                f.flush()
+                                os.fsync(f.fileno())
+                        count += 1
+                        self.logger.debug(f"Successfully wrote Q&A pair for chunk {i+1}")
                     else:
                         self.logger.debug(f"Generated Q&A pair for chunk {i+1} failed validation")
                 except Exception as e:
                     self.logger.warning(f"Error generating Q&A for chunk {i+1} in {file_path}: {e}")
                     continue
             
-            return qa_pairs
+            return count
             
         except Exception as e:
             self.logger.error(f"Error processing documentation file {file_path}: {e}")
-            return []
+            return 0
     
-    def _process_single_code_file(self, file_path: str, repo_name: str) -> List[Dict[str, str]]:
+    def _process_single_code_file(self, file_path: str, repo_name: str, output_file: str) -> int:
         """
         Process a single code file.
         
@@ -337,7 +337,7 @@ class FileProcessor:
             repo_name: Repository name
             
         Returns:
-            List of Q&A pairs
+            Number of Q&A pairs generated
         """
         try:
             # Read file
@@ -345,22 +345,22 @@ class FileProcessor:
                 content = f.read()
             
             if not content.strip():
-                return []
+                return 0
             
             # Clean code text
             cleaned_content = self.text_cleaner.clean_code_text(content)
             
             if not cleaned_content.strip():
-                return []
+                return 0
             
             # Chunk code
             chunks = self.chunker.chunk_code_by_blocks(cleaned_content, min_chars=100)
             
             if not chunks:
-                return []
+                return 0
             
             # Generate Q&A pairs for each chunk
-            qa_pairs = []
+            count = 0
             for chunk in chunks:
                 if len(chunk.strip()) < 50:  # Skip very short chunks
                     continue
@@ -372,13 +372,22 @@ class FileProcessor:
                         formatted_pair = self.output_converter.format_qa_pair_for_output(
                             qa_pair, file_path, repo_name
                         )
-                        qa_pairs.append(formatted_pair)
+                        with self.output_lock:
+                            with open(output_file, 'a', encoding='utf-8') as f:
+                                import json, os
+                                f.write(json.dumps(formatted_pair, ensure_ascii=False) + '\n')
+                                f.flush()
+                                os.fsync(f.fileno())
+                        count += 1
+                        self.logger.debug(f"Successfully wrote Q&A pair for chunk {i+1}")
+                    else:
+                        self.logger.debug(f"Generated Q&A pair for chunk {i+1} failed validation")
                 except Exception as e:
                     self.logger.warning(f"Error generating Q&A for chunk in {file_path}: {e}")
                     continue
             
-            return qa_pairs
+            return count
             
         except Exception as e:
             self.logger.error(f"Error processing code file {file_path}: {e}")
-            return [] 
+            return 0 

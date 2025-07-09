@@ -43,16 +43,16 @@ def main():
         epilog="""
 Examples:
   # Process a single repository
-  python prepare_data_modular.py --repo-path /path/to/repo --repo-name my-repo --output-dir ./output
+  python prepare_data_modular.py --repo-path /opt/ml/trainer/sources --repo-name datafusion --output-dir ./output
 
   # Process multiple repositories
-  python prepare_data_modular.py --repo-path /path/to/repos --output-dir ./output --batch-mode
+  uv run prepare_data_modular.py --repo-path /opt/ml/trainer/sources --output-dir ./output --batch-mode --verbose
 
   # Use a different model
-  python prepare_data_modular.py --repo-path /path/to/repo --model llama3.1 --output-dir ./output
+  python prepare_data_modular.py --repo-path /opt/ml/trainer/sources --model llama3.1 --output-dir ./output
 
   # Enable verbose logging
-  python prepare_data_modular.py --repo-path /path/to/repo --verbose --output-dir ./output
+  python prepare_data_modular.py --repo-path /opt/ml/trainer/sources --verbose --output-dir ./output
         """
     )
     
