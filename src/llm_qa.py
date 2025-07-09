@@ -141,41 +141,69 @@ Respond with ONLY valid JSON in this exact format:
     
     def _extract_qa_from_response(self, text: str) -> Optional[Dict[str, str]]:
         """
-        Extract question and answer directly from LLM response using regex patterns.
-        
-        Args:
-            text: LLM response text
-            
-        Returns:
-            Q&A pair dictionary or None
+        Extract question and answer robustly from LLM response.
+        - Question: everything between '"question":' and '"answer":'
+        - Answer: everything after '"answer":' (accepts quote, pipe, or whitespace) to the end of the text
         """
         self.logger.debug(f"Extracting Q&A from response: {text[:200]}...")
-        
-        # Try various regex patterns
-        patterns = [
-            (r'"question":\s*"([^"]*)"', r'"answer":\s*\|(.*?)(?=\s*"|$)', re.DOTALL),
-            (r'"question":\s*"([^"]*)"', r'"answer":\s*"([^"]*)"', re.DOTALL),
-            (r'question["\s]*:["\s]*([^"\n]+)', r'answer["\s]*:["\s]*\|(.*?)(?=\n\s*["\w]|$)', re.DOTALL),
-            (r'question["\s]*:["\s]*([^"\n]+)', r'answer["\s]*:["\s]*([^"\n]+)', re.DOTALL),
-        ]
-        
-        for question_pattern, answer_pattern, flags in patterns:
-            try:
-                question_match = re.search(question_pattern, text, flags)
-                answer_match = re.search(answer_pattern, text, flags)
-                
-                if question_match and answer_match:
-                    question = question_match.group(1).strip()
-                    answer = self._clean_answer_text(answer_match.group(1).strip())
-                    
-                    if question and answer:
-                        return {"question": question, "answer": answer}
-            except Exception as e:
-                self.logger.debug(f"Pattern failed: {e}")
-                continue
-        
-        # Fallback extraction
-        return self._fallback_extraction(text)
+
+        q_key = '"question"'
+        a_key = '"answer"'
+        q_start = text.find(q_key)
+        a_start = text.find(a_key)
+        if q_start == -1 or a_start == -1 or a_start < q_start:
+            self.logger.error("Could not find both 'question' and 'answer' keys in response")
+            return None
+
+        # Extract question value
+        q_colon = text.find(':', q_start)
+        if q_colon == -1 or q_colon > a_start:
+            self.logger.error("Malformed response: could not find ':' after 'question'")
+            return None
+        # Find the first quote after the colon
+        q_quote1 = text.find('"', q_colon)
+        if q_quote1 == -1 or q_quote1 > a_start:
+            self.logger.error("Malformed response: could not find opening quote for question value")
+            return None
+        question_raw = text[q_quote1+1:a_start].rstrip(', \n\r\t')
+        if question_raw.endswith('"'):
+            question_raw = question_raw[:-1]
+        question = question_raw.strip()
+
+        # Extract answer value
+        a_colon = text.find(':', a_start)
+        if a_colon == -1:
+            self.logger.error("Malformed response: could not find ':' after 'answer'")
+            return None
+        # Start after the colon
+        answer_start = a_colon + 1
+        # Skip whitespace
+        while answer_start < len(text) and text[answer_start] in ' \t\r\n':
+            answer_start += 1
+        # Optionally skip a quote or pipe
+        if answer_start < len(text) and text[answer_start] in '"|':
+            answer_start += 1
+            # Also skip whitespace after quote/pipe
+            while answer_start < len(text) and text[answer_start] in ' \t\r\n':
+                answer_start += 1
+        # The answer is everything from answer_start to the end
+        answer_raw = text[answer_start:].rstrip(', \n\r\t')
+        # Remove trailing quote if present
+        if answer_raw.endswith('"'):
+            answer_raw = answer_raw[:-1]
+        answer = answer_raw.strip()
+        # Remove leading pipe if present
+        if answer.startswith('|'):
+            answer = answer[1:].lstrip()
+
+        self.logger.info(f"Extracted question: {question}")
+        self.logger.info(f"Extracted answer: {answer}")
+
+        if question and answer:
+            return {"question": question, "answer": answer}
+        else:
+            self.logger.error("Failed to extract non-empty question and answer")
+            return None
     
     def _fallback_extraction(self, text: str) -> Optional[Dict[str, str]]:
         """
