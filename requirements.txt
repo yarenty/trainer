@@ -10,3 +10,5 @@ fastparquet
 pyarrow
 uv
 ollama
+unsloth[colab-new]
+trl

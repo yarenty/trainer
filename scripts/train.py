@@ -1,204 +1,129 @@
+
 import os
 import torch
-from datasets import load_dataset, Dataset, DatasetDict
-from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training, TaskType
-import json
-import time
+import logging
+from datasets import load_dataset
+from transformers import TrainingArguments
+from trl import SFTTrainer
+from unsloth import FastLanguageModel
 
-def load_and_prepare_datasets(data_dir: str) -> DatasetDict:
-    """
-    Loads all generated JSONL datasets from the data_dir and combines them.
-    Filters out entries with error messages.
-    """
-    all_data = []
-    for filename in os.listdir(data_dir):
-        if filename.endswith("_qa.jsonl"):
-            file_path = os.path.join(data_dir, filename)
-            print(f"Loading data from {file_path}...")
-            with open(file_path, 'r', encoding='utf-8') as f:
-                for line in f:
-                    try:
-                        entry = json.loads(line.strip())
-                        # Filter out entries that indicate an error in Q&A generation
-                        if "Error: Could not generate question." not in entry.get("question", ""):
-                            all_data.append(entry)
-                    except json.JSONDecodeError as e:
-                        print(f"Skipping malformed JSON line in {filename}: {line.strip()} - {e}")
-    
-    if not all_data:
-        raise ValueError(f"No valid data found in {data_dir}. Please ensure _qa.jsonl files exist and are correctly formatted.")
+# --- Setup Logging ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    # Convert list of dicts to Hugging Face Dataset
-    full_dataset = Dataset.from_list(all_data)
-
-    # Split into train and validation sets
-    # Adjust test_size as needed, e.g., 0.1 for 10% validation
-    train_test_split = full_dataset.train_test_split(test_size=0.05, seed=42)
-    
-    return DatasetDict({
-        'train': train_test_split['train'],
-        'validation': train_test_split['test']
-    })
-
-def format_instruction(sample):
-    """
-    Formats the dataset into an instruction-tuning format.
-    Adjust this based on how your LLM expects input.
-    """
-    return f"### Instruction:\n{sample['question']}\n\n### Response:\n{sample['answer']}"
+# --- Configuration ---
+# Model name from Hugging Face (using a 4-bit quantized model for efficiency)
+model_name = "unsloth/llama-3-8b-Instruct-bnb-4bit"
+# Path to the JSONL dataset created by prepare_data.py
+dataset_path = "output/datafusion-functions-json/docs_qa.jsonl"
+# Directory to save the fine-tuned model adapters
+output_dir = "models/llama3-8b-datafusion-instruct"
+# Maximum sequence length the model can handle
+max_seq_length = 2048
+# Number of training epochs
+num_train_epochs = 3
+# Batch size per GPU
+per_device_train_batch_size = 2
+# Number of gradients to accumulate before updating weights
+gradient_accumulation_steps = 4
+# Learning rate for the optimizer
+learning_rate = 2e-4
+# LoRA rank (dimension of the low-rank matrices)
+lora_r = 64
+# LoRA alpha (scaling factor)
+lora_alpha = 16
+# LoRA dropout probability
+lora_dropout = 0.1
 
 def main():
-    # --- Configuration ---
-    print("\n========== [PHASE 1: CONFIGURATION] ==========")
-    start_time = time.time()
-    model_name = "HuggingFaceTB/SmolLM2-1.7B-Instruct" #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
-    # Ensure you have access to Llama 3.2 on Hugging Face or download it locally.
-    # For Llama 3, you might need to use "meta-llama/Meta-Llama-3-8B" or similar.
-    # You'll need to authenticate with Hugging Face if using a gated model.
+    """
+    Main function to run the fine-tuning pipeline.
+    1.  Load a pre-trained model and tokenizer.
+    2.  Configure the model for LoRA (Low-Rank Adaptation).
+    3.  Load and format the dataset.
+    4.  Set up the training process using SFTTrainer.
+    5.  Start the training.
+    6.  Save the final model adapters.
+    """
+    logging.info("--- Starting Fine-Tuning ---")
 
-    data_dir = "/opt/ml/trainer/data"
-    output_dir = "/opt/ml/trainer/models/llama3_datafusion_finetuned"
-    
-    # QLoRA configuration
-    lora_r = 16
-    lora_alpha = 32
-    lora_dropout = 0.05
-    
-    # Training arguments
-    per_device_train_batch_size = 4
-    gradient_accumulation_steps = 4
-    num_train_epochs = 3
-    learning_rate = 2e-4
-    fp16 = True # Set to False if your GPU doesn't support FP16/BF16
-    logging_steps = 10
-    save_steps = 500
-    eval_steps = 500
-    
-    # --- Load Data ---
-    print("\n========== [PHASE 2: DATA LOADING & PREPARATION] ==========")
-    data_load_start = time.time()
-    print("Loading and preparing datasets...")
-    raw_datasets = load_and_prepare_datasets(data_dir)
-    print(f"Train dataset size: {len(raw_datasets['train'])}")
-    print(f"Validation dataset size: {len(raw_datasets['validation'])}")
-    print(f"Data loading completed in {time.time() - data_load_start:.2f} seconds.")
-
-    # --- Load Tokenizer and Model ---
-    print("\n========== [PHASE 3: MODEL & TOKENIZER LOADING] ==========")
-    model_load_start = time.time()
-    print(f"Loading tokenizer and model: {model_name}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.pad_token = tokenizer.eos_token # Set pad token for causal LMs
-    print("Tokenizer loaded.")
-
-    # Quantization configuration (4-bit)
-    bnb_config = BitsAndBytesConfig(
+    # --- 1. Load Model and Tokenizer ---
+    logging.info(f"Loading base model: {model_name}")
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_name,
+        max_seq_length=max_seq_length,
+        dtype=None,  # Let unsloth handle dtype
         load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=False,
     )
+    logging.info("Model and tokenizer loaded successfully.")
 
-    print("Loading model with quantization config...")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        device_map="auto", # Automatically maps model to available devices (e.g., GPU)
-        torch_dtype=torch.float16, # Use float16 for faster training if supported
-    )
-    print("Model loaded.")
-    model.config.use_cache = False # Disable cache for training
-    model.config.pretraining_tp = 1 # For Llama models, helps with tensor parallelism
-    print("Preparing model for k-bit training...")
-    model = prepare_model_for_kbit_training(model)
-    print("Model prepared for k-bit training.")
-    print("Configuring LoRA...")
-    peft_config = LoraConfig(
+    # --- 2. Configure LoRA ---
+    logging.info("Configuring model for LoRA...")
+    model = FastLanguageModel.get_peft_model(
+        model,
         r=lora_r,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
         bias="none",
-        task_type=TaskType.CAUSAL_LM,
+        use_gradient_checkpointing=True,
+        random_state=42,
+        max_seq_length=max_seq_length,
     )
-    model = get_peft_model(model, peft_config)
-    print("LoRA model prepared:")
-    model.print_trainable_parameters()
-    print(f"Model and tokenizer loading completed in {time.time() - model_load_start:.2f} seconds.")
+    logging.info("LoRA configured successfully.")
 
-    # --- Tokenize Data ---
-    print("\n========== [PHASE 4: TOKENIZATION] ==========")
-    tokenization_start = time.time()
-    print("Tokenizing datasets...")
-    def tokenize_function(examples):
-        # Apply formatting and then tokenize
-        return tokenizer(
-            [format_instruction(sample) for sample in examples],
-            truncation=True,
-            max_length=512, # Adjust max_length based on your data and model context window
-            padding="max_length", # Pad to max_length
-        )
+    # --- 3. Load and Format Dataset ---
+    def format_chat_template(row):
+        """Formats a row of the dataset into the Llama-3 chat template."""
+        row["text"] = f"""<|begin_of_text|><|start_header_id|>user<|end_header_id|>
 
-    tokenized_datasets = raw_datasets.map(
-        tokenize_function,
-        batched=True,
-        remove_columns=raw_datasets["train"].column_names # Remove original columns
-    )
-    print("Tokenization complete.")
-    print(f"Tokenized train dataset: {len(tokenized_datasets['train'])} samples")
-    print(f"Tokenized validation dataset: {len(tokenized_datasets['validation'])} samples")
-    print(f"Tokenization completed in {time.time() - tokenization_start:.2f} seconds.")
+{row['question']}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
-    # --- Training Arguments ---
-    training_args = TrainingArguments(
-        output_dir=output_dir,
-        per_device_train_batch_size=per_device_train_batch_size,
-        gradient_accumulation_steps=gradient_accumulation_steps,
-        num_train_epochs=num_train_epochs,
-        learning_rate=learning_rate,
-        fp16=fp16,
-        logging_steps=logging_steps,
-        save_steps=save_steps,
-        eval_steps=eval_steps,
-        evaluation_strategy="steps",
-        save_total_limit=2, # Only keep the last 2 checkpoints
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
-        report_to="none", # Disable reporting to W&B or other platforms for simplicity
-    )
+{row['answer']}<|eot_id|>"""
+        return row
 
-    # --- Trainer ---
-    trainer = Trainer(
+    logging.info(f"Loading and formatting dataset from: {dataset_path}")
+    dataset = load_dataset("json", data_files=dataset_path, split="train")
+    dataset = dataset.map(format_chat_template, num_proc=4)
+    logging.info(f"Dataset loaded. Number of examples: {len(dataset)}")
+
+    # --- 4. Set up Trainer ---
+    logging.info("Setting up SFTTrainer...")
+    trainer = SFTTrainer(
         model=model,
-        args=training_args,
-        train_dataset=tokenized_datasets["train"],
-        eval_dataset=tokenized_datasets["validation"],
         tokenizer=tokenizer,
+        train_dataset=dataset,
+        dataset_text_field="text",
+        max_seq_length=max_seq_length,
+        dataset_num_proc=2,
+        packing=False,  # We're using a custom chat template, so packing is not needed
+        args=TrainingArguments(
+            per_device_train_batch_size=per_device_train_batch_size,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            warmup_steps=5,
+            num_train_epochs=num_train_epochs,
+            learning_rate=learning_rate,
+            fp16=not torch.cuda.is_bf16_supported(),
+            bf16=torch.cuda.is_bf16_supported(),
+            logging_steps=1,
+            optim="adamw_8bit",
+            weight_decay=0.01,
+            lr_scheduler_type="linear",
+            seed=42,
+            output_dir=output_dir,
+        ),
     )
-    print("Trainer initialized.")
+    logging.info("Trainer setup complete.")
 
-    # --- Start Training ---
-    print("\n========== [PHASE 6: TRAINING] ==========")
-    training_start = time.time()
-    print("Starting training...")
+    # --- 5. Train the model ---
+    logging.info("--- Starting model training ---")
     trainer.train()
-    print(f"Training completed in {time.time() - training_start:.2f} seconds.")
+    logging.info("--- Model training finished ---")
 
-    # --- Save Fine-tuned Model ---
-    print("\n========== [PHASE 7: SAVING MODEL] ==========")
-    save_start = time.time()
-    print("Saving fine-tuned model adapters...")
+    # --- 6. Save the final model ---
+    logging.info(f"Saving final model adapters to: {output_dir}")
     trainer.save_model(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    print(f"Fine-tuning complete. Model adapters saved to {output_dir}")
-    print(f"Model saving completed in {time.time() - save_start:.2f} seconds.")
-
-    print("\n========== [ALL PHASES COMPLETE] ==========")
-    print(f"Total script runtime: {time.time() - start_time:.2f} seconds.")
+    logging.info("Model saved successfully.")
+    logging.info("--- Fine-Tuning Complete ---")
 
 if __name__ == "__main__":
-    # Ensure you have a GPU and necessary drivers installed for this to run efficiently.
-    # Also, ensure you have logged into Hugging Face if using a gated model:
-    # huggingface-cli login
     main()
