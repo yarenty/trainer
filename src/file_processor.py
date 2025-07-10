@@ -361,7 +361,7 @@ class FileProcessor:
             
             # Generate Q&A pairs for each chunk
             count = 0
-            for chunk in chunks:
+            for i, chunk in enumerate(chunks):
                 if len(chunk.strip()) < 50:  # Skip very short chunks
                     continue
                 
