@@ -47,11 +47,16 @@ def main():
     6.  Save the final model adapters.
     """
     logging.info("--- Starting Fine-Tuning ---")
+    os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
 
     # --- 1. Load Model and Tokenizer ---
     logging.info(f"Loading base model: {model_name}")
-    model = AutoModel.from_pretrained(model_name)
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model, tokenizer = FastLanguageModel.from_pretrained(
+        model_name=model_name,
+        max_seq_length=max_seq_length,
+        dtype=None,  # Let unsloth handle dtype
+        load_in_4bit=True,
+    )
     logging.info("Model and tokenizer loaded successfully.")
 
     # --- 2. Configure LoRA ---
