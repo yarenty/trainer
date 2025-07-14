@@ -6,15 +6,17 @@ from datasets import load_dataset
 from transformers import TrainingArguments
 from trl import SFTTrainer
 from unsloth import FastLanguageModel
+import glob
+from transformers import AutoModel, AutoTokenizer
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
 # Model name from Hugging Face (using a 4-bit quantized model for efficiency)
-model_name = "unsloth/Qwen2-7B-Instruct-bnb-4bit"
-# Path to the JSONL dataset created by prepare_data.py
-dataset_path = "output/datafusion-functions-json/docs_qa.jsonl"
+model_name = "./qwen2"  # Load from local directory
+# Directory containing all .jsonl files for training (recursively)
+data_root = "output/"
 # Directory to save the fine-tuned model adapters
 output_dir = "models/qwen2-7b-datafusion-instruct"
 # Maximum sequence length the model can handle
@@ -48,12 +50,8 @@ def main():
 
     # --- 1. Load Model and Tokenizer ---
     logging.info(f"Loading base model: {model_name}")
-    model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=model_name,
-        max_seq_length=max_seq_length,
-        dtype=None,  # Let unsloth handle dtype
-        load_in_4bit=True,
-    )
+    model = AutoModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
     logging.info("Model and tokenizer loaded successfully.")
 
     # --- 2. Configure LoRA ---
@@ -77,8 +75,13 @@ def main():
         row["text"] = f"<|im_start|>user\n{row['question']}<|im_end|>\n<|im_start|>assistant\n{row['answer']}<|im_end|>"
         return row
 
-    logging.info(f"Loading and formatting dataset from: {dataset_path}")
-    dataset = load_dataset("json", data_files=dataset_path, split="train")
+    # Recursively find all .jsonl files under output/
+    data_files = glob.glob(os.path.join(data_root, "**", "*.jsonl"), recursive=True)
+    if not data_files:
+        raise FileNotFoundError(f"No .jsonl files found in directory tree: {data_root}")
+
+    logging.info(f"Loading and formatting dataset from: {data_files}")
+    dataset = load_dataset("json", data_files={"train": data_files}, split="train")
     dataset = dataset.map(format_chat_template, num_proc=4)
     logging.info(f"Dataset loaded. Number of examples: {len(dataset)}")
 
