@@ -32,6 +32,22 @@ def main():
     # q4_k_m is a good balance of size and performance
     gguf_quant_type = "q4_k_m"
 
+    # --- Check required files and directories ---
+    required_paths = [
+        (base_model_name, True, "Base model directory"),
+        (finetuned_adapter_path, True, "Fine-tuned adapter directory"),
+        (llama_cpp_path, True, "llama.cpp directory"),
+        (os.path.join(llama_cpp_path, "convert_hf_to_gguf.py"), False, "convert_hf_to_gguf.py script"),
+        (os.path.join(llama_cpp_path, "quantize"), False, "quantize executable"),
+    ]
+    for path, is_dir, desc in required_paths:
+        if is_dir and not os.path.isdir(path):
+            print(f"Error: {desc} not found at {path}. Please ensure it exists.")
+            return
+        if not is_dir and not os.path.isfile(path):
+            print(f"Error: {desc} not found at {path}. Please ensure it exists.")
+            return
+
     # --- Create directories ---
     os.makedirs(merged_model_output_path, exist_ok=True)
     os.makedirs(gguf_output_dir, exist_ok=True)
@@ -62,7 +78,7 @@ def main():
 
     # --- 4. GGUF Conversion ---
     # Paths to llama.cpp conversion scripts/executables
-    convert_py_path = os.path.join(llama_cpp_path, "convert-hf-to-gguf.py")
+    convert_py_path = os.path.join(llama_cpp_path, "convert_hf_to_gguf.py")
     quantize_exec_path = os.path.join(llama_cpp_path, "quantize")
 
     if not os.path.exists(convert_py_path):
