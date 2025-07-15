@@ -3,28 +3,30 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import subprocess
-from trainer.config import MODELS_DIR
+from config import MODELS_DIR, DEFAULT_MODEL_NAME, MERGED_MODEL, GGUF_MODEL, FINAL_OLLAMA, FINE_TUNED_MODEL
 
 def main():
     # --- Configuration ---
     # Path to your original base model (e.g., Llama 3.2 from Hugging Face)
     # This should match the model_name used in scripts/train.py
-    base_model_name = "meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
+    
+
+    base_model_name = DEFAULT_MODEL_NAME #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
 
     # Path where your fine-tuned LoRA adapters were saved by scripts/train.py
-    finetuned_adapter_path = os.path.join(MODELS_DIR, "llama3_datafusion_finetuned")
+    finetuned_adapter_path = os.path.join(MODELS_DIR, FINE_TUNED_MODEL)
 
     # Directory to save the merged Hugging Face model
-    merged_model_output_path = os.path.join(MODELS_DIR, "llama3_datafusion_merged_hf")
+    merged_model_output_path = os.path.join(MODELS_DIR, MERGED_MODEL)
 
     # Directory to save the GGUF file and Modelfile
-    gguf_output_dir = os.path.join(MODELS_DIR, "ollama_ready")
+    gguf_output_dir = os.path.join(MODELS_DIR, GGUF_MODEL)
     
     # !!! IMPORTANT: Set this to the absolute path of your cloned llama.cpp directory !!!
     llama_cpp_path = "/opt/ml/trainer/llama.cpp" # <--- CHANGE THIS LINE
 
     # Name for your model in Ollama
-    ollama_model_name = "datafusion-llama3"
+    ollama_model_name = FINAL_OLLAMA
 
     # Quantization type for GGUF (e.g., q4_k_m, q5_k_m, q8_0)
     # q4_k_m is a good balance of size and performance

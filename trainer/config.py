@@ -21,6 +21,10 @@ QA_MODEL = "llama3.2"
 DEFAULT_MODEL_NAME_CPU = "Qwen/Qwen2-7B-Instruct"
 DEFAULT_MODEL_NAME = "unsloth/Qwen2-7B-Instruct-bnb-4bit"
 FINE_TUNED_MODEL = "qwen2-7b-datafusion-instruct" 
+MERGED_MODEL = "qwen2-7b-datafusion-instruct_merged" 
+GGUF_MODEL = "qwen2-7b-atafusion-instruct-gguf"
+FINAL_OLLAMA = "qwen2_datafusionf"
+
 MAX_WORKERS = 8
 
 
