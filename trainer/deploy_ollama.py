@@ -33,12 +33,22 @@ def main():
     gguf_quant_type = "q4_k_m"
 
     # --- Check required files and directories ---
+    quantize_root = os.path.join(llama_cpp_path, "quantize")
+    quantize_build = os.path.join(llama_cpp_path, "build", "quantize")
+    quantize_exec_path = None
+    if os.path.isfile(quantize_root):
+        quantize_exec_path = quantize_root
+    elif os.path.isfile(quantize_build):
+        quantize_exec_path = quantize_build
+    else:
+        print(f"Error: quantize executable not found at {quantize_root} or {quantize_build}. Please ensure it is built.")
+        return
+
     required_paths = [
         (base_model_name, True, "Base model directory"),
         (finetuned_adapter_path, True, "Fine-tuned adapter directory"),
         (llama_cpp_path, True, "llama.cpp directory"),
         (os.path.join(llama_cpp_path, "convert_hf_to_gguf.py"), False, "convert_hf_to_gguf.py script"),
-        (os.path.join(llama_cpp_path, "quantize"), False, "quantize executable"),
     ]
     for path, is_dir, desc in required_paths:
         if is_dir and not os.path.isdir(path):
@@ -79,13 +89,10 @@ def main():
     # --- 4. GGUF Conversion ---
     # Paths to llama.cpp conversion scripts/executables
     convert_py_path = os.path.join(llama_cpp_path, "convert_hf_to_gguf.py")
-    quantize_exec_path = os.path.join(llama_cpp_path, "quantize")
+    # quantize_exec_path is already set above
 
     if not os.path.exists(convert_py_path):
         print(f"Error: {convert_py_path} not found. Please ensure llama.cpp is cloned and built correctly.")
-        return
-    if not os.path.exists(quantize_exec_path):
-        print(f"Error: {quantize_exec_path} not found. Please ensure llama.cpp is cloned and built correctly.")
         return
 
     # Define intermediate and final GGUF paths
