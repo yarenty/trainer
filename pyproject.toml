@@ -5,3 +5,6 @@ description = "Fine tunnig trainer"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = "."

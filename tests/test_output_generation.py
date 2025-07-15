@@ -7,13 +7,9 @@ import sys
 import logging
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
-
-from text_cleaner import TextCleaner
-from chunker import Chunker
-from output_converter import OutputConverter
+from trainer.qa_prepare.text_cleaner import TextCleaner
+from trainer.qa_prepare.chunker import Chunker
+from trainer.qa_prepare.output_converter import OutputConverter
 
 def test_basic_output():
     """Test basic output generation without LLM."""

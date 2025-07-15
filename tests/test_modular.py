@@ -6,44 +6,41 @@ Test script for the modular Q&A generation package.
 import sys
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
 
 def test_imports():
     """Test that all modules can be imported."""
     print("Testing imports...")
     
     try:
-        from text_cleaner import TextCleaner
+        from trainer.qa_prepare.text_cleaner import TextCleaner
         print("✓ TextCleaner imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import TextCleaner: {e}")
         return False
     
     try:
-        from chunker import Chunker
+        from trainer.qa_prepare.chunker import Chunker
         print("✓ Chunker imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import Chunker: {e}")
         return False
     
     try:
-        from llm_qa import LLM_QA
+        from trainer.qa_prepare.llm_qa import LLM_QA
         print("✓ LLM_QA imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import LLM_QA: {e}")
         return False
     
     try:
-        from output_converter import OutputConverter
+        from trainer.qa_prepare.output_converter import OutputConverter
         print("✓ OutputConverter imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import OutputConverter: {e}")
         return False
     
     try:
-        from file_processor import FileProcessor
+        from trainer.qa_prepare.file_processor import FileProcessor
         print("✓ FileProcessor imported successfully")
     except ImportError as e:
         print(f"✗ Failed to import FileProcessor: {e}")
@@ -55,7 +52,7 @@ def test_text_cleaner():
     """Test TextCleaner functionality."""
     print("\nTesting TextCleaner...")
     
-    from text_cleaner import TextCleaner
+    from trainer.qa_prepare.text_cleaner import TextCleaner
     
     cleaner = TextCleaner()
     
@@ -85,7 +82,7 @@ def test_chunker():
     """Test Chunker functionality."""
     print("\nTesting Chunker...")
     
-    from chunker import Chunker
+    from trainer.qa_prepare.chunker import Chunker
     
     chunker = Chunker()
     
@@ -115,7 +112,7 @@ def test_output_converter():
     """Test OutputConverter functionality."""
     print("\nTesting OutputConverter...")
     
-    from output_converter import OutputConverter
+    from trainer.qa_prepare.output_converter import OutputConverter
     
     converter = OutputConverter()
     
