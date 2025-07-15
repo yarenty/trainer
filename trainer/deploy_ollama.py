@@ -3,7 +3,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 import subprocess
-from config import MODELS_DIR, DEFAULT_MODEL_NAME, MERGED_MODEL, GGUF_MODEL, FINAL_OLLAMA, FINE_TUNED_MODEL
+from config import MODELS_DIR, DEFAULT_MODEL_NAME, MERGED_MODEL, GGUF_MODEL, FINAL_OLLAMA, FINE_TUNED_MODEL, LOCAL_MODEL_DIR
 
 def main():
     # --- Configuration ---
@@ -11,7 +11,7 @@ def main():
     # This should match the model_name used in scripts/train.py
     
 
-    base_model_name = DEFAULT_MODEL_NAME #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
+    base_model_name = LOCAL_MODEL_DIR #"meta-llama/Llama-2-7b-hf" # Replace with Llama 3.2 when available on HF or use a local path
 
     # Path where your fine-tuned LoRA adapters were saved by scripts/train.py
     finetuned_adapter_path = os.path.join(MODELS_DIR, FINE_TUNED_MODEL)
@@ -37,13 +37,14 @@ def main():
     os.makedirs(gguf_output_dir, exist_ok=True)
 
     # --- 1. Load Base Model and LoRA Adapters ---
-    print(f"Loading base model from {base_model_name}...")
+    print(f"Loading base model from local directory: {base_model_name} ...")
     base_model = AutoModelForCausalLM.from_pretrained(
         base_model_name,
         torch_dtype=torch.float16, # Use float16 for efficiency
         device_map="auto", # Load model onto available devices
+        local_files_only=True, # Ensure only local files are used
     )
-    base_tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+    base_tokenizer = AutoTokenizer.from_pretrained(base_model_name, local_files_only=True)
 
     print(f"Loading LoRA adapters from {finetuned_adapter_path} and merging...")
     model = PeftModel.from_pretrained(base_model, finetuned_adapter_path)
