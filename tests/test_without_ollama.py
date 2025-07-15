@@ -95,9 +95,7 @@ print(result)
     chunks = chunker.chunk_by_headings(cleaned_content, min_chars=50)
     print(f"✓ Text chunked: {len(chunks)} chunks")
     
-    if len(chunks) == 0:
-        print("❌ No chunks created")
-        return False
+    assert len(chunks) > 0, "No chunks created"
     
     # Generate Q&A pairs
     qa_pairs = []
@@ -119,9 +117,7 @@ print(result)
     
     print(f"\n✓ Generated {len(qa_pairs)} Q&A pairs")
     
-    if len(qa_pairs) == 0:
-        print("❌ No Q&A pairs generated")
-        return False
+    assert len(qa_pairs) > 0, "No Q&A pairs generated"
     
     # Write output
     output_file = "test_output.jsonl"
@@ -130,43 +126,35 @@ print(result)
         print(f"✓ Wrote output to {output_file}")
         
         # Verify output
-        if Path(output_file).exists():
-            with open(output_file, 'r') as f:
-                lines = f.readlines()
-                print(f"✓ Output file contains {len(lines)} lines")
-                
-                # Show first Q&A pair
-                if lines:
-                    first_pair = json.loads(lines[0])
-                    print(f"\nSample Q&A pair:")
-                    print(f"  Question: {first_pair.get('question', 'N/A')}")
-                    print(f"  Answer: {first_pair.get('answer', 'N/A')[:100]}...")
-                    print(f"  Source: {first_pair.get('source_file', 'N/A')}")
-                    print(f"  Repo: {first_pair.get('source_repo', 'N/A')}")
-        
-        return True
+        assert Path(output_file).exists(), "Output file was not created"
+        with open(output_file, 'r') as f:
+            lines = f.readlines()
+            print(f"✓ Output file contains {len(lines)} lines")
+            assert len(lines) == len(qa_pairs), "Output file does not contain all Q&A pairs"
+            if lines:
+                first_pair = json.loads(lines[0])
+                print(f"\nSample Q&A pair:")
+                print(f"  Question: {first_pair.get('question', 'N/A')}")
+                print(f"  Answer: {first_pair.get('answer', 'N/A')[:100]}...")
+                print(f"  Source: {first_pair.get('source_file', 'N/A')}")
+                print(f"  Repo: {first_pair.get('source_repo', 'N/A')}")
         
     except Exception as e:
-        print(f"❌ Error writing output: {e}")
-        return False
+        assert False, f"Error writing output: {e}"
 
 def main():
     """Run the test."""
     print("Testing modular pipeline without Ollama...\n")
     
     try:
-        success = test_full_pipeline()
+        test_full_pipeline()
         
-        if success:
-            print("\n🎉 Test passed! The modular structure is working correctly.")
-            print("\nTo test with real Ollama:")
-            print("1. Make sure Ollama is running")
-            print("2. Run: python scripts/prepare_data_modular.py --repo-path . --repo-name test --output-dir ./output --verbose")
-            return 0
-        else:
-            print("\n❌ Test failed. Check the implementation.")
-            return 1
-            
+        print("\n🎉 Test passed! The modular structure is working correctly.")
+        print("\nTo test with real Ollama:")
+        print("1. Make sure Ollama is running")
+        print("2. Run: python scripts/prepare_data_modular.py --repo-path . --repo-name test --output-dir ./output --verbose")
+        return 0
+        
     except Exception as e:
         print(f"\n❌ Test failed with exception: {e}")
         return 1

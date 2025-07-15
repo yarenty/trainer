@@ -17,17 +17,9 @@ def test_basic_output():
     
     # Create test data
     test_qa_pairs = [
-        {
-            "question": "What is Python?",
-            "answer": "Python is a high-level programming language known for its simplicity and readability."
-        },
-        {
-            "question": "How do you define a function in Python?",
-            "answer": "You define a function using the 'def' keyword followed by the function name and parameters."
-        }
+        {"question": "What is Python?", "answer": "Python is a high-level programming language known for its simplicity and readability."},
+        {"question": "How do you define a function in Python?", "answer": "You define a function using the 'def' keyword followed by the function name and parameters."}
     ]
-    
-    # Test output converter
     converter = OutputConverter()
     
     # Test writing to file
@@ -35,25 +27,14 @@ def test_basic_output():
     try:
         converter.write_qa_pairs_to_jsonl(test_qa_pairs, output_file)
         print(f"✓ Successfully wrote {len(test_qa_pairs)} Q&A pairs to {output_file}")
-        
-        # Check if file exists and has content
-        if Path(output_file).exists():
-            with open(output_file, 'r') as f:
-                lines = f.readlines()
-                print(f"✓ File contains {len(lines)} lines")
-                if len(lines) == len(test_qa_pairs):
-                    print("✓ All Q&A pairs were written correctly")
-                else:
-                    print(f"✗ Expected {len(test_qa_pairs)} lines, got {len(lines)}")
-        else:
-            print("✗ Output file was not created")
-            return False
-            
+        assert Path(output_file).exists(), "Output file was not created"
+        with open(output_file, 'r') as f:
+            lines = f.readlines()
+            print(f"✓ File contains {len(lines)} lines")
+            assert len(lines) == len(test_qa_pairs), f"Expected {len(test_qa_pairs)} lines, got {len(lines)}"
+            print("✓ All Q&A pairs were written correctly")
     except Exception as e:
-        print(f"✗ Error writing output: {e}")
-        return False
-    
-    return True
+        assert False, f"Error writing output: {e}"
 
 def test_file_discovery():
     """Test file discovery functionality."""
@@ -73,40 +54,25 @@ def test_file_discovery():
     # Look for any text files
     txt_files = list(current_dir.glob("*.txt"))
     print(f"Found {len(txt_files)} Text files in current directory")
-    
     total_files = len(python_files) + len(md_files) + len(txt_files)
     print(f"Total files found: {total_files}")
-    
-    if total_files > 0:
-        print("✓ File discovery is working")
-        return True
-    else:
-        print("✗ No files found - this might be the issue")
-        return False
+    assert total_files > 0, "No files found - this might be the issue"
+    print("✓ File discovery is working")
 
 def test_text_processing():
     """Test text processing pipeline."""
     print("\nTesting text processing pipeline...")
-    
-    # Create test text
     test_text = """
     # Python Programming
-    
     Python is a high-level programming language.
-    
     ## Functions
-    
     Functions are defined using the def keyword:
-    
     ```python
     def hello_world():
         print("Hello, World!")
     ```
-    
     ## Variables
-    
     Variables are created by assignment:
-    
     ```python
     x = 10
     y = "Hello"
@@ -122,20 +88,13 @@ def test_text_processing():
     chunker = Chunker()
     chunks = chunker.chunk_by_headings(cleaned_text, min_chars=50)
     print(f"✓ Text chunking completed. Created {len(chunks)} chunks")
-    
-    if len(chunks) > 0:
-        print("✓ Text processing pipeline is working")
-        return True
-    else:
-        print("✗ Text processing pipeline failed")
-        return False
+    assert len(chunks) > 0, "Text processing pipeline failed"
+    print("✓ Text processing pipeline is working")
 
 def test_directory_creation():
     """Test directory creation functionality."""
     print("\nTesting directory creation...")
-    
     test_dir = Path("test_output_dir")
-    
     try:
         test_dir.mkdir(parents=True, exist_ok=True)
         print(f"✓ Successfully created directory: {test_dir}")
@@ -149,11 +108,8 @@ def test_directory_creation():
         test_file.unlink()
         test_dir.rmdir()
         print("✓ Successfully cleaned up test directory")
-        
-        return True
     except Exception as e:
-        print(f"✗ Error with directory operations: {e}")
-        return False
+        assert False, f"Error with directory operations: {e}"
 
 def main():
     """Run all tests."""
@@ -171,8 +127,10 @@ def main():
     
     for test in tests:
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
+        except AssertionError as e:
+            print(f"✗ Test {test.__name__} failed with assertion: {e}")
         except Exception as e:
             print(f"✗ Test {test.__name__} failed with exception: {e}")
     
