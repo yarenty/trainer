@@ -6,98 +6,65 @@ Test script to verify file writing functionality.
 import sys
 import json
 from pathlib import Path
+import tempfile
 
-# Add src to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
 
-from output_converter import OutputConverter
+from trainer.qa_prepare.output_converter import OutputConverter
 
 def test_file_writing():
     """Test that files are written correctly."""
     print("Testing file writing functionality...")
-    
-    # Create test Q&A pairs
     test_qa_pairs = [
-        {
-            "question": "What is Python?",
-            "answer": "Python is a high-level programming language known for its simplicity and readability."
-        },
-        {
-            "question": "How do you define a function in Python?",
-            "answer": "You define a function using the 'def' keyword followed by the function name and parameters."
-        }
+        {"question": "What is Python?", "answer": "Python is a high-level programming language known for its simplicity and readability."},
+        {"question": "How do you define a function in Python?", "answer": "You define a function using the 'def' keyword followed by the function name and parameters."}
     ]
     
     # Test output converter
     converter = OutputConverter()
     
     # Test writing to file
-    output_file = "test_qa_output.jsonl"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp:
+        output_file = tmp.name
     try:
         converter.write_qa_pairs_to_jsonl(test_qa_pairs, output_file)
         print(f"✓ Successfully wrote {len(test_qa_pairs)} Q&A pairs to {output_file}")
-        
-        # Verify file exists and has content
-        if Path(output_file).exists():
-            file_size = Path(output_file).stat().st_size
-            print(f"✓ File exists with size: {file_size} bytes")
-            
-            if file_size > 0:
-                print("✓ File has content")
-                
-                # Read and verify content
-                with open(output_file, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-                    print(f"✓ File contains {len(lines)} lines")
-                    
-                    if len(lines) == len(test_qa_pairs):
-                        print("✓ All Q&A pairs were written")
-                        
-                        # Parse first line to verify JSON format
-                        try:
-                            first_pair = json.loads(lines[0].strip())
-                            if 'question' in first_pair and 'answer' in first_pair:
-                                print("✓ JSON format is correct")
-                                print(f"  Sample question: {first_pair['question']}")
-                                print(f"  Sample answer: {first_pair['answer'][:50]}...")
-                            else:
-                                print("✗ JSON format is missing required fields")
-                                return False
-                        except json.JSONDecodeError as e:
-                            print(f"✗ JSON parsing failed: {e}")
-                            return False
-                    else:
-                        print(f"✗ Expected {len(test_qa_pairs)} lines, got {len(lines)}")
-                        return False
-            else:
-                print("✗ File is empty")
-                return False
-        else:
-            print("✗ File was not created")
-            return False
-            
+        assert Path(output_file).exists(), "File was not created"
+        file_size = Path(output_file).stat().st_size
+        print(f"✓ File exists with size: {file_size} bytes")
+        assert file_size > 0, "File is empty"
+        print("✓ File has content")
+        with open(output_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            print(f"✓ File contains {len(lines)} lines")
+            assert len(lines) == len(test_qa_pairs), f"Expected {len(test_qa_pairs)} lines, got {len(lines)}"
+            print("✓ All Q&A pairs were written")
+            try:
+                first_pair = json.loads(lines[0].strip())
+                assert 'question' in first_pair and 'answer' in first_pair, "JSON format is missing required fields"
+                print("✓ JSON format is correct")
+                print(f"  Sample question: {first_pair['question']}")
+                print(f"  Sample answer: {first_pair['answer'][:50]}...")
+            except json.JSONDecodeError as e:
+                assert False, f"JSON parsing failed: {e}"
     except Exception as e:
-        print(f"✗ Error writing output: {e}")
-        return False
-    
-    return True
+        assert False, f"Error writing output: {e}"
+    finally:
+        Path(output_file).unlink(missing_ok=True)
 
 def test_merge_functionality():
     """Test merging functionality."""
     print("\nTesting merge functionality...")
     
     # Create two test files
-    file1 = "test_file1.jsonl"
-    file2 = "test_file2.jsonl"
-    merged_file = "test_merged.jsonl"
-    
     converter = OutputConverter()
-    
-    # Create test data
     qa_pairs1 = [{"question": "Q1", "answer": "A1"}]
     qa_pairs2 = [{"question": "Q2", "answer": "A2"}]
-    
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp1, \
+         tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp2, \
+         tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as merged_tmp:
+        file1 = tmp1.name
+        file2 = tmp2.name
+        merged_file = merged_tmp.name
     try:
         # Write individual files
         converter.write_qa_pairs_to_jsonl(qa_pairs1, file1)
@@ -105,29 +72,17 @@ def test_merge_functionality():
         
         # Merge files
         converter.merge_jsonl_files([file1, file2], merged_file)
-        
-        # Verify merged file
-        if Path(merged_file).exists():
-            with open(merged_file, 'r') as f:
-                lines = f.readlines()
-                if len(lines) == 2:
-                    print("✓ Merge functionality works")
-                    
-                    # Clean up
-                    Path(file1).unlink()
-                    Path(file2).unlink()
-                    Path(merged_file).unlink()
-                    return True
-                else:
-                    print(f"✗ Merged file has wrong number of lines: {len(lines)}")
-                    return False
-        else:
-            print("✗ Merged file was not created")
-            return False
-            
+        assert Path(merged_file).exists(), "Merged file was not created"
+        with open(merged_file, 'r') as f:
+            lines = f.readlines()
+            assert len(lines) == 2, f"Merged file has wrong number of lines: {len(lines)}"
+            print("✓ Merge functionality works")
     except Exception as e:
-        print(f"✗ Error in merge test: {e}")
-        return False
+        assert False, f"Error in merge test: {e}"
+    finally:
+        Path(file1).unlink(missing_ok=True)
+        Path(file2).unlink(missing_ok=True)
+        Path(merged_file).unlink(missing_ok=True)
 
 def main():
     """Run all tests."""
@@ -143,8 +98,10 @@ def main():
     
     for test in tests:
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
+        except AssertionError as e:
+            print(f"✗ Test {test.__name__} failed with assertion: {e}")
         except Exception as e:
             print(f"✗ Test {test.__name__} failed with exception: {e}")
     
@@ -152,7 +109,6 @@ def main():
     
     if passed == total:
         print("🎉 All file writing tests passed!")
-        print("\nThe issue might be in the Q&A generation or validation logic.")
         print("Try running the modular script with --verbose to see more details:")
         print("python scripts/prepare_data_modular.py --repo-path . --repo-name test --output-dir ./output --verbose")
         return 0

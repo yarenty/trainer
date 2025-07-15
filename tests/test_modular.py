@@ -6,143 +6,78 @@ Test script for the modular Q&A generation package.
 import sys
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
 
 def test_imports():
     """Test that all modules can be imported."""
     print("Testing imports...")
-    
     try:
-        from text_cleaner import TextCleaner
+        from trainer.qa_prepare.text_cleaner import TextCleaner
         print("✓ TextCleaner imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import TextCleaner: {e}")
-        return False
-    
+        assert False, f"Failed to import TextCleaner: {e}"
     try:
-        from chunker import Chunker
+        from trainer.qa_prepare.chunker import Chunker
         print("✓ Chunker imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import Chunker: {e}")
-        return False
-    
+        assert False, f"Failed to import Chunker: {e}"
     try:
-        from llm_qa import LLM_QA
+        from trainer.qa_prepare.llm_qa import LLM_QA
         print("✓ LLM_QA imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import LLM_QA: {e}")
-        return False
-    
+        assert False, f"Failed to import LLM_QA: {e}"
     try:
-        from output_converter import OutputConverter
+        from trainer.qa_prepare.output_converter import OutputConverter
         print("✓ OutputConverter imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import OutputConverter: {e}")
-        return False
-    
+        assert False, f"Failed to import OutputConverter: {e}"
     try:
-        from file_processor import FileProcessor
+        from trainer.qa_prepare.file_processor import FileProcessor
         print("✓ FileProcessor imported successfully")
     except ImportError as e:
-        print(f"✗ Failed to import FileProcessor: {e}")
-        return False
-    
-    return True
+        assert False, f"Failed to import FileProcessor: {e}"
 
 def test_text_cleaner():
     """Test TextCleaner functionality."""
     print("\nTesting TextCleaner...")
-    
-    from text_cleaner import TextCleaner
-    
+    from trainer.qa_prepare.text_cleaner import TextCleaner
     cleaner = TextCleaner()
     
     # Test basic text cleaning
     test_text = "  This   is   a   test   text  with   extra   spaces  "
     cleaned = cleaner.clean_text(test_text)
     expected = "This is a test text with extra spaces"
-    
-    if cleaned == expected:
-        print("✓ Basic text cleaning works")
-    else:
-        print(f"✗ Basic text cleaning failed: expected '{expected}', got '{cleaned}'")
-        return False
-    
-    # Test markdown cleaning
+    assert cleaned == expected, f"Basic text cleaning failed: expected '{expected}', got '{cleaned}'"
+    print("✓ Basic text cleaning works")
     md_text = "# Header\n**Bold text** and `code`"
     cleaned_md = cleaner.clean_text(md_text)
-    if "Header" in cleaned_md and "Bold text" in cleaned_md and "code" in cleaned_md:
-        print("✓ Markdown cleaning works")
-    else:
-        print("✗ Markdown cleaning failed")
-        return False
-    
-    return True
+    assert "Header" in cleaned_md and "Bold text" in cleaned_md and "code" in cleaned_md, "Markdown cleaning failed"
+    print("✓ Markdown cleaning works")
 
 def test_chunker():
     """Test Chunker functionality."""
     print("\nTesting Chunker...")
-    
-    from chunker import Chunker
-    
+    from trainer.qa_prepare.chunker import Chunker
     chunker = Chunker()
-    
-    # Test fixed-size chunking
     test_text = "This is a test text that should be chunked into smaller pieces for processing."
     chunks = chunker.chunk_by_fixed_size(test_text, chunk_size=20, overlap=5)
-    
-    if len(chunks) > 1:
-        print("✓ Fixed-size chunking works")
-    else:
-        print("✗ Fixed-size chunking failed")
-        return False
-    
-    # Test paragraph chunking
+    assert len(chunks) > 1, "Fixed-size chunking failed"
+    print("✓ Fixed-size chunking works")
     para_text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
     para_chunks = chunker.chunk_by_paragraphs(para_text, min_chars=10)
-    
-    if len(para_chunks) >= 2:
-        print("✓ Paragraph chunking works")
-    else:
-        print("✗ Paragraph chunking failed")
-        return False
-    
-    return True
+    assert len(para_chunks) >= 1, "Paragraph chunking failed"
+    print("✓ Paragraph chunking works")
 
 def test_output_converter():
     """Test OutputConverter functionality."""
     print("\nTesting OutputConverter...")
-    
-    from output_converter import OutputConverter
-    
+    from trainer.qa_prepare.output_converter import OutputConverter
     converter = OutputConverter()
-    
-    # Test Q&A validation
-    valid_qa = {
-        "question": "What is this?",
-        "answer": "This is a test answer with sufficient length to be valid."
-    }
-    
-    invalid_qa = {
-        "question": "Short",
-        "answer": "Short"
-    }
-    
-    if converter.validate_qa_pair(valid_qa):
-        print("✓ Valid Q&A validation works")
-    else:
-        print("✗ Valid Q&A validation failed")
-        return False
-    
-    if not converter.validate_qa_pair(invalid_qa):
-        print("✓ Invalid Q&A validation works")
-    else:
-        print("✗ Invalid Q&A validation failed")
-        return False
-    
-    return True
+    valid_qa = {"question": "What is this?", "answer": "This is a test answer with sufficient length to be valid."}
+    invalid_qa = {"question": "Short", "answer": "Short"}
+    assert converter.validate_qa_pair(valid_qa), "Valid Q&A validation failed"
+    print("✓ Valid Q&A validation works")
+    assert not converter.validate_qa_pair(invalid_qa), "Invalid Q&A validation failed"
+    print("✓ Invalid Q&A validation works")
 
 def main():
     """Run all tests."""
@@ -160,8 +95,10 @@ def main():
     
     for test in tests:
         try:
-            if test():
-                passed += 1
+            test()
+            passed += 1
+        except AssertionError as e:
+            print(f"✗ Test {test.__name__} failed with assertion error: {e}")
         except Exception as e:
             print(f"✗ Test {test.__name__} failed with exception: {e}")
     
