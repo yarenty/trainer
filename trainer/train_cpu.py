@@ -5,6 +5,7 @@ from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from peft import get_peft_model, LoraConfig
 from trl import SFTTrainer
+from trainer.config import DEFAULT_MODEL_NAME_CPU, MAX_WORKERS
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # It is recommended to run the GPU version (`train.py`) on a CUDA-enabled machine if possible.
 
 # Model name from Hugging Face (using a non-gated model).
-model_name = "Qwen/Qwen2-7B-Instruct"
+model_name = DEFAULT_MODEL_NAME_CPU
 # Path to the JSONL dataset
 dataset_path = "output/datafusion-functions-json/docs_qa.jsonl"
 # Directory to save the fine-tuned model adapters

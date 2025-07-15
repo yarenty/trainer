@@ -38,3 +38,5 @@ models/
 llama.cpp
 llama.cpp/
 llama.cpp/*
+
+qwen2

@@ -8,17 +8,18 @@ from trl import SFTTrainer
 from unsloth import FastLanguageModel
 import glob
 from transformers import AutoModel, AutoTokenizer
+from trainer.config import DATA_DIR, LOCAL_MODEL_DIR, MODELS_DIR, FINE_TUNED_MODEL
 
 # --- Setup Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Configuration ---
 # Model name from Hugging Face (using a 4-bit quantized model for efficiency)
-model_name = "./qwen2"  # Load from local directory
+model_name = LOCAL_MODEL_DIR  # Load from local directory
 # Directory containing all .jsonl files for training (recursively)
-data_root = "output/"
+data_root = DATA_DIR
 # Directory to save the fine-tuned model adapters
-output_dir = "models/qwen2-7b-datafusion-instruct"
+output_dir = "{MODELS_DIR}/{FINE_TUNED_MODEL}"
 # Maximum sequence length the model can handle
 max_seq_length = 2048
 # Number of training epochs

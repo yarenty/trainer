@@ -7,11 +7,11 @@ import sys
 import json
 from pathlib import Path
 
-# Add src to path
-src_path = Path(__file__).parent / "src"
-sys.path.insert(0, str(src_path))
+# # Add src to path
+# src_path = Path(__file__).parent / "trainer"
+# sys.path.insert(0, str(src_path))
 
-from output_converter import OutputConverter
+from trainer.qa_prepare.output_converter import OutputConverter
 
 def test_file_writing():
     """Test that files are written correctly."""

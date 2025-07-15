@@ -16,8 +16,9 @@ src_path = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_path))
 
 # Import directly from the module
-from file_processor import FileProcessor
+from trainer.qa_prepare.file_processor import FileProcessor
 import ollama
+from trainer.config import QA_MODEL, MAX_WORKERS
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -75,15 +76,15 @@ Examples:
     
     parser.add_argument(
         "--model",
-        default="llama3.2",
-        help="Ollama model to use for Q&A generation (default: llama3.2)"
+        default=QA_MODEL,
+        help=f"Ollama model to use for Q&A generation (default: {QA_MODEL})"
     )
     
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=8,
-        help="Maximum number of concurrent workers (default: 8)"
+        default=MAX_WORKERS,
+        help=f"Maximum number of concurrent workers (default: {MAX_WORKERS})"
     )
     
     parser.add_argument(

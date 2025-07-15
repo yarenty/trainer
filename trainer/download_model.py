@@ -1,8 +1,9 @@
 from transformers import AutoModel, AutoTokenizer
 import os
+from trainer.config import LOCAL_MODEL_DIR, DEFAULT_MODEL_NAME
 
-model_name = "unsloth/Qwen2-7B-Instruct-bnb-4bit"
-save_dir = "./qwen2"
+model_name = DEFAULT_MODEL_NAME
+save_dir = LOCAL_MODEL_DIR
 
 os.makedirs(save_dir, exist_ok=True)
 

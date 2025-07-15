@@ -10,10 +10,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 import threading
 
-from text_cleaner import TextCleaner
-from chunker import Chunker
-from llm_qa import LLM_QA
-from output_converter import OutputConverter
+from .text_cleaner import TextCleaner
+from .chunker import Chunker
+from .llm_qa import LLM_QA
+from .output_converter import OutputConverter
 
 
 class FileProcessor:
