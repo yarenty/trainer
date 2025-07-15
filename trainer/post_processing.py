@@ -1,10 +1,9 @@
-from trainer.config import DATA_DIR
+from config import DATA_DIR
 import os
 import json
 from glob import glob
 
 TARGET_PHRASE = "Please refer to the original documentation for complete details and usage examples."
-
 
 
 def process_jsonl_file(filepath):
