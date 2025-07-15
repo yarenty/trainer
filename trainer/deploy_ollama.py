@@ -33,15 +33,12 @@ def main():
     gguf_quant_type = "q4_k_m"
 
     # --- Check required files and directories ---
-    quantize_root = os.path.join(llama_cpp_path, "quantize")
-    quantize_build = os.path.join(llama_cpp_path, "build", "quantize")
+    quantize_bin = os.path.join(llama_cpp_path, "build", "bin", "llama-quantize")
     quantize_exec_path = None
-    if os.path.isfile(quantize_root):
-        quantize_exec_path = quantize_root
-    elif os.path.isfile(quantize_build):
-        quantize_exec_path = quantize_build
+    if os.path.isfile(quantize_bin):
+        quantize_exec_path = quantize_bin
     else:
-        print(f"Error: quantize executable not found at {quantize_root} or {quantize_build}. Please ensure it is built.")
+        print(f"Error: quantize executable not found at {quantize_bin}. Please ensure it is built (look for 'llama-quantize').")
         return
 
     required_paths = [
