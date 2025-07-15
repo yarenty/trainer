@@ -62,7 +62,7 @@ def main():
 
     # --- 4. GGUF Conversion ---
     # Paths to llama.cpp conversion scripts/executables
-    convert_py_path = os.path.join(llama_cpp_path, "convert.py")
+    convert_py_path = os.path.join(llama_cpp_path, "convert-hf-to-gguf.py")
     quantize_exec_path = os.path.join(llama_cpp_path, "quantize")
 
     if not os.path.exists(convert_py_path):
@@ -80,9 +80,9 @@ def main():
     convert_command = [
         "python3", # Use python3 explicitly
         convert_py_path,
-        merged_model_output_path,
-        "--outtype", "f16", # Convert to float16 GGUF first
-        "--outfile", intermediate_gguf_path
+        "--model", merged_model_output_path,
+        "--outfile", intermediate_gguf_path,
+        "--outtype", "f16" # Convert to float16 GGUF first
     ]
     print(f"Running command: {' '.join(convert_command)}")
     try:
@@ -90,8 +90,8 @@ def main():
         print("Conversion to intermediate GGUF (f16) successful.")
     except subprocess.CalledProcessError as e:
         print(f"Error during GGUF conversion: {e}")
-        print(f"Stdout: {e.stdout.decode()}")
-        print(f"Stderr: {e.stderr.decode()}")
+        print(f"Stdout: {e.stdout.decode() if e.stdout else ''}")
+        print(f"Stderr: {e.stderr.decode() if e.stderr else ''}")
         return
 
     print(f"Quantizing GGUF model to {gguf_quant_type} using {quantize_exec_path}...")
