@@ -1,3 +1,9 @@
+"""
+Step 5: Quantize GGUF Model
+
+Quantizes the GGUF model using llama.cpp's llama-quantize tool. Uses
+config.py for all settings.
+"""
 import logging
 import os
 import subprocess
@@ -5,7 +11,8 @@ from trainer.config import MODELS_DIR, GGUF_MODEL, FINAL_OLLAMA, LLAMA_CPP_PATH,
 
 def main():
     """
-    Step 5: Quantize GGUF model using llama.cpp's llama-quantize tool.
+    Quantizes the GGUF model using llama.cpp's llama-quantize tool. Logs
+    errors if files are missing or quantization fails.
     """
     gguf_dir = os.path.join(MODELS_DIR, GGUF_MODEL)
     input_gguf = os.path.join(gguf_dir, "model.gguf")
@@ -15,10 +22,14 @@ def main():
 
     # Check existence
     if not os.path.isfile(input_gguf):
-        logging.error(f"Input GGUF file {input_gguf} does not exist. Run GGUF conversion first.")
+        logging.error(
+            f"Input GGUF file {input_gguf} does not exist. Run GGUF conversion first."
+        )
         return
     if not os.path.isfile(quantize_bin):
-        logging.error(f"llama-quantize binary not found at {quantize_bin}. Build llama.cpp with CMake.")
+        logging.error(
+            f"llama-quantize binary not found at {quantize_bin}. Build llama.cpp with CMake."
+        )
         return
 
     # Build command

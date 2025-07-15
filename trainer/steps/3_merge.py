@@ -1,3 +1,9 @@
+"""
+Step 3: Merge Fine-Tuned Model
+
+Copies the fine-tuned model directory to the merged model directory.
+No adapter merging is needed for full fine-tuning.
+"""
 import logging
 import os
 import shutil
@@ -5,13 +11,18 @@ from trainer.config import MODELS_DIR, FINE_TUNED_MODEL, MERGED_MODEL
 
 def main():
     """
-    Step 3: For full fine-tuning, copy the fine-tuned model directory to the merged model directory.
+    Copies the fine-tuned model directory to the merged model directory.
+    Logs errors if the source directory does not exist or copying fails.
     """
     src_dir = os.path.join(MODELS_DIR, FINE_TUNED_MODEL)
     dst_dir = os.path.join(MODELS_DIR, MERGED_MODEL)
-    logging.info(f"Copying fine-tuned model from {src_dir} to {dst_dir} (as merged model)...")
+    logging.info(
+        f"Copying fine-tuned model from {src_dir} to {dst_dir} (as merged model)..."
+    )
     if not os.path.exists(src_dir):
-        logging.error(f"Source directory {src_dir} does not exist. Run training first.")
+        logging.error(
+            f"Source directory {src_dir} does not exist. Run training first."
+        )
         return
     os.makedirs(os.path.dirname(dst_dir), exist_ok=True)
     try:
