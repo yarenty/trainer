@@ -1,143 +1,130 @@
-# LLM Fine-tuning for DataFusion Documentation
+# LLM Training Pipeline
 
-This project aims to fine-tune a Large Language Model (LLM) to understand and answer questions about DataFusion, Apache Arrow, and related Rust data processing libraries. The goal is to create a specialized LLM that can serve as an intelligent interface for querying documentation and codebase.
+This project provides a **modular, extensible pipeline** for training, fine-tuning, merging, converting, quantizing, and evaluating large language models (LLMs). It supports:
 
-## Project Structure
+- **Full fine-tuning** (standard Hugging Face Trainer)
+- **LoRA/PEFT** parameter-efficient fine-tuning
+- **SFTTrainer** (trl) supervised fine-tuning
+- GGUF conversion and quantization for llama.cpp/Ollama
+- Ollama Modelfile creation and import
+- Evaluation and compatibility checks
 
-- `src/`: Python source code for various utilities.
-- `data/`: Stores processed documentation, Q&A pairs, and other data artifacts.
-- `scripts/`: Contains Python scripts for data preparation, model training, and evaluation.
-- `models/`: Will store fine-tuned LLM models and adapters.
-- `tests/`: Unit and integration tests.
-- `sources/`: Contains the raw source code repositories (e.g., DataFusion, Arrow, Ballista) used for documentation extraction.
+## Features
+- Step-by-step scripts for each stage of the pipeline (see `trainer/steps/`)
+- CLI with `--train-mode` (`full`, `lora`, `sft`) and `--device` (`cpu`, `gpu`)
+- All configuration (paths, model names, defaults) in `trainer/config.py`
+- Utilities for each training mode and shared data processing
+- Google-style docstrings, logging, and robust error handling
+- Follows strict coding conventions for readability and maintainability
 
-## Setup
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd <repository_name>
-    ```
+## Installation
 
-2.  **Install `uv` (if not already installed):**
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    ```
+1. **Clone this repository:**
+   ```sh
+   git clone <repository_url>
+   cd <repository_name>
+   ```
 
-3.  **Create and activate a virtual environment:**
-    ```bash
-    uv venv
-    source .venv/bin/activate
-    ```
+2. **Create and activate a virtual environment:**
+   ```sh
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
 
-4.  **Install dependencies:**
-    ```bash
-    uv pip install -r requirements.txt
-    ```
+3. **Install Python dependencies:**
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+4. **Install additional tools:**
+   - [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/guides/cli):
+     ```sh
+     pip install huggingface_hub
+     huggingface-cli login
+     ```
+   - [trl (for SFTTrainer)](https://github.com/huggingface/trl):
+     ```sh
+     pip install trl
+     ```
+   - [peft (for LoRA/PEFT)](https://github.com/huggingface/peft):
+     ```sh
+     pip install peft
+     ```
+   - [datasets](https://github.com/huggingface/datasets):
+     ```sh
+     pip install datasets
+     ```
+
+5. **Install and build llama.cpp:**
+   ```sh
+   git clone https://github.com/ggerganov/llama.cpp.git llama.cpp
+   cd llama.cpp
+   cmake .
+   make
+   cd ..
+   ```
+   - This will build the necessary GGUF conversion and quantization tools.
+
+## Download Source Repositories
+
+Place the source code repositories you want to use for data preparation in the `sources/` directory. For example:
+
+```sh
+cd sources
+# Example: DataFusion, Arrow, Ballista
+git clone https://github.com/apache/arrow-datafusion.git datafusion
+git clone https://github.com/apache/arrow-rs.git arrow-rs
+# Add more as needed
+```
 
 ## Data Preparation
 
-The `scripts/prepare_data.py` script is responsible for extracting documentation from the `sources/` directory, cleaning it, chunking it using various strategies, and generating question-answer pairs. It includes a placeholder for LLM-assisted Q&A generation using Ollama.
+1. **Prepare your data:**
+   - Use or adapt the provided scripts to extract documentation, code, and generate Q&A pairs from the `sources/` directory.
+   - Place the resulting `.jsonl` files in the `qa_data/` directory.
+   - Each `.jsonl` file should contain objects with `question` and `answer` fields.
 
-To prepare the data:
+2. **Example data preparation script:**
+   - (You may need to write or adapt a script for your specific sources. See `train/prepare_data.py` for examples.)
 
-1.  **Ensure source repositories are in `sources/`:** Place the cloned repositories (e.g., `datafusion`, `arrow-rs`, `ballista`) into the `sources/` directory.
+## Pipeline Usage
 
-2.  **Run the data preparation script:**
-    ```bash
-    python scripts/prepare_data.py
-    ```
-    This will generate `*.jsonl` files in the `data/` directory, one for each processed repository (e.g., `data/datafusion_qa.jsonl`, `data/ballista_qa.jsonl`).
+1. **Configure your pipeline**
+   - Edit `trainer/config.py` to set model names, paths, and defaults (`TRAIN_MODE`, `DEVICE`).
 
-    **Note on Ollama Integration:**
-    If you wish to use an actual LLM (like Llama 3.2) for Q&A generation during data preparation:
-    -   Install Ollama: Follow instructions on [ollama.ai](https://ollama.ai/).
-    -   Pull the desired model: `ollama pull llama3.2` (or your preferred Llama 3 variant).
-    -   Install the Ollama Python library: `uv pip install ollama`.
-    -   Uncomment the Ollama-related lines in `scripts/prepare_data.py`.
+2. **Run each step**
+   - Use the CLI to run each step in order, or rerun any step as needed:
+     ```sh
+     python -m trainer.main --step 1_download
+     python -m trainer.main --step 2_train --train-mode lora --device gpu
+     python -m trainer.main --step 3_merge
+     python -m trainer.main --step 4_gguf
+     python -m trainer.main --step 5_quantize
+     python -m trainer.main --step 6_ollama
+     python -m trainer.main --step 7_evaluate
+     ```
+   - If you omit `--train-mode` or `--device`, the defaults from `config.py` are used.
 
-## Model Fine-tuning
+3. **Switch training modes easily**
+   - Use `--train-mode full`, `--train-mode lora`, or `--train-mode sft` to select your preferred fine-tuning strategy.
 
-The `scripts/train.py` script handles the fine-tuning of a base LLM (e.g., Llama 3.2) using the prepared Q&A datasets. It leverages PEFT (LoRA) and 4-bit quantization for efficient training.
+4. **Customize and extend**
+   - Add new steps, utilities, or models as needed. The pipeline is designed for easy extension and experimentation.
 
-**Prerequisites:**
--   A GPU with sufficient VRAM and compatible drivers.
--   Access to the chosen base model on Hugging Face (you might need to `huggingface-cli login`).
+## Workflow Overview
 
-To fine-tune the model:
+1. **Download**: Fetch base model and tokenizer from Hugging Face.
+2. **Train**: Fine-tune using full, LoRA, or SFTTrainer mode.
+3. **Merge**: Merge adapters (if needed) or copy fine-tuned model.
+4. **GGUF Conversion**: Convert to GGUF format for llama.cpp/Ollama.
+5. **Quantize**: Quantize the GGUF model for efficient inference.
+6. **Ollama Import**: Create Modelfile and import into Ollama.
+7. **Evaluate**: Test model on Datafusion QA tasks.
 
-```bash
-python scripts/train.py
-```
+## Coding Conventions
+- Follows [coding-conventions.md](coding-conventions.md) and [python_guide.md](python_guide.md)
+- Google-style docstrings, error handling, and logging throughout
 
-## Model Deployment with Ollama
-
-After fine-tuning, the `scripts/deploy_ollama.py` script prepares the model for deployment with Ollama. This involves merging LoRA adapters, converting to GGUF format, and creating an Ollama Modelfile.
-
-**Prerequisites:**
--   **Clone `llama.cpp`:** You need the `llama.cpp` source code for the `convert.py` script. Clone it to `/opt/ml/trainer/llama.cpp` (as per previous steps).
-    ```bash
-    git clone https://github.com/ggerganov/llama.cpp.git /opt/ml/trainer/llama.cpp
-    ```
--   **Build `llama.cpp`:** Navigate into the cloned `llama.cpp` directory and build it. This will create the `quantize` executable.
-    ```bash
-    cd /opt/ml/trainer/llama.cpp
-    make
-    ```
-    (Ensure you have a C++ compiler like `g++` or `clang` installed.)
--   **Verify `llama_cpp_path` in `scripts/deploy_ollama.py`:** Ensure the `llama_cpp_path` variable in the script is set to `/opt/ml/trainer/llama.cpp`.
-
-To deploy the model to Ollama:
-
-1.  **Run the deployment script:**
-    ```bash
-    python scripts/deploy_ollama.py
-    ```
-
-2.  **Import the model into Ollama:** The script will output the exact `ollama create` command you need to run. It will look something like:
-    ```bash
-    ollama create datafusion-llama3 -f /path/to/your/models/ollama_ready/Modelfile
-    ```
-
-3.  **Run your fine-tuned model:**
-    ```bash
-    ollama run datafusion-llama3 "### Instruction:\nHow do I use the filter operation in DataFusion?\n\n### Response:"
-    ```
-
-## Testing and Evaluation
-
-After successfully deploying your fine-tuned model to Ollama, you can begin testing its performance and knowledge of DataFusion. 
-
-**Qualitative Testing:**
-
-1.  **Interact via Ollama CLI:** Use the `ollama run` command to interact directly with your model. Ask questions related to DataFusion concepts, API usage, SQL syntax, and common operations. For example:
-    ```bash
-    ollama run datafusion-llama3
-    >>> ### Instruction:\nExplain the purpose of the `DataFrame` API in DataFusion.\n\n### Response:
-    ```
-    Observe the model's responses. Do they accurately reflect the documentation? Are they concise and relevant?
-
-2.  **Compare with Base Model:** If possible, compare the responses of your fine-tuned model with the original base Llama 3.2 model (or whichever base model you used). You should see an improvement in DataFusion-specific knowledge and a reduction in generic LLM responses.
-
-3.  **Test Edge Cases and Ambiguities:** Pose questions that might be ambiguous or require a deeper understanding of DataFusion's nuances. For example, ask about differences between similar functions or how to handle specific error scenarios.
-
-**Quantitative Evaluation (Advanced - Requires a Test Set):**
-
-For a more rigorous evaluation, you would typically create a separate, unseen test dataset of DataFusion-related questions and their ground-truth answers. This dataset should *not* have been used during the fine-tuning process.
-
-1.  **Create a Test Set:** Manually or semi-automatically generate a set of questions and expected answers covering various aspects of DataFusion.
-
-2.  **Generate Model Responses:** Use a Python script to programmatically query your fine-tuned Ollama model with the questions from your test set and collect its responses.
-
-3.  **Evaluate Metrics:** Use Natural Language Processing (NLP) evaluation metrics to compare the model's generated answers against the ground-truth answers. Relevant metrics include:
-    *   **ROUGE (Recall-Oriented Understudy for Gisting Evaluation):** Measures the overlap of n-grams between the generated and reference summaries/answers. Useful for assessing content overlap.
-    *   **BLEU (Bilingual Evaluation Understudy):** Measures the precision of n-grams. Often used for machine translation, but can be adapted for Q&A.
-    *   **Semantic Similarity Metrics:** Libraries like `sentence-transformers` can be used to embed both the generated and reference answers into vector space and calculate cosine similarity, providing a measure of semantic closeness.
-
-    This would involve writing a Python script that:
-    -   Loads your test dataset.
-    -   Uses the `ollama` Python client to send prompts to your local Ollama instance.
-    -   Collects responses.
-    -   Calculates and reports the chosen evaluation metrics.
-
-By combining qualitative interaction and (optionally) quantitative metrics, you can assess how well your fine-tuned LLM has learned the DataFusion knowledge and is performing for your specific use case.
+## License
+See `LICENSE` for details.
