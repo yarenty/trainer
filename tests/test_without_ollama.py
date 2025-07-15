@@ -6,6 +6,7 @@ Test script that works without Ollama to verify basic functionality.
 import sys
 import json
 from pathlib import Path
+import tempfile
 
 from trainer.qa_prepare.text_cleaner import TextCleaner
 from trainer.qa_prepare.chunker import Chunker
@@ -120,7 +121,8 @@ print(result)
     assert len(qa_pairs) > 0, "No Q&A pairs generated"
     
     # Write output
-    output_file = "test_output.jsonl"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp:
+        output_file = tmp.name
     try:
         converter.write_qa_pairs_to_jsonl(qa_pairs, output_file)
         print(f"✓ Wrote output to {output_file}")
@@ -141,6 +143,8 @@ print(result)
         
     except Exception as e:
         assert False, f"Error writing output: {e}"
+    finally:
+        Path(output_file).unlink(missing_ok=True)
 
 def main():
     """Run the test."""

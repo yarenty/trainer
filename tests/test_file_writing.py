@@ -6,7 +6,7 @@ Test script to verify file writing functionality.
 import sys
 import json
 from pathlib import Path
-
+import tempfile
 
 
 from trainer.qa_prepare.output_converter import OutputConverter
@@ -23,7 +23,8 @@ def test_file_writing():
     converter = OutputConverter()
     
     # Test writing to file
-    output_file = "test_qa_output.jsonl"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp:
+        output_file = tmp.name
     try:
         converter.write_qa_pairs_to_jsonl(test_qa_pairs, output_file)
         print(f"✓ Successfully wrote {len(test_qa_pairs)} Q&A pairs to {output_file}")
@@ -47,20 +48,23 @@ def test_file_writing():
                 assert False, f"JSON parsing failed: {e}"
     except Exception as e:
         assert False, f"Error writing output: {e}"
+    finally:
+        Path(output_file).unlink(missing_ok=True)
 
 def test_merge_functionality():
     """Test merging functionality."""
     print("\nTesting merge functionality...")
     
     # Create two test files
-    file1 = "test_file1.jsonl"
-    file2 = "test_file2.jsonl"
-    merged_file = "test_merged.jsonl"
     converter = OutputConverter()
-    
-    # Create test data
     qa_pairs1 = [{"question": "Q1", "answer": "A1"}]
     qa_pairs2 = [{"question": "Q2", "answer": "A2"}]
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp1, \
+         tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp2, \
+         tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as merged_tmp:
+        file1 = tmp1.name
+        file2 = tmp2.name
+        merged_file = merged_tmp.name
     try:
         # Write individual files
         converter.write_qa_pairs_to_jsonl(qa_pairs1, file1)
@@ -73,11 +77,12 @@ def test_merge_functionality():
             lines = f.readlines()
             assert len(lines) == 2, f"Merged file has wrong number of lines: {len(lines)}"
             print("✓ Merge functionality works")
-        Path(file1).unlink()
-        Path(file2).unlink()
-        Path(merged_file).unlink()
     except Exception as e:
         assert False, f"Error in merge test: {e}"
+    finally:
+        Path(file1).unlink(missing_ok=True)
+        Path(file2).unlink(missing_ok=True)
+        Path(merged_file).unlink(missing_ok=True)
 
 def main():
     """Run all tests."""
@@ -104,7 +109,6 @@ def main():
     
     if passed == total:
         print("🎉 All file writing tests passed!")
-        print("\nThe issue might be in the Q&A generation or validation logic.")
         print("Try running the modular script with --verbose to see more details:")
         print("python scripts/prepare_data_modular.py --repo-path . --repo-name test --output-dir ./output --verbose")
         return 0

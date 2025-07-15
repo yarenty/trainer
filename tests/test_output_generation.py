@@ -6,6 +6,7 @@ Test script to verify output generation is working.
 import sys
 import logging
 from pathlib import Path
+import tempfile
 
 from trainer.qa_prepare.text_cleaner import TextCleaner
 from trainer.qa_prepare.chunker import Chunker
@@ -23,7 +24,8 @@ def test_basic_output():
     converter = OutputConverter()
     
     # Test writing to file
-    output_file = "test_output.jsonl"
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.jsonl') as tmp:
+        output_file = tmp.name
     try:
         converter.write_qa_pairs_to_jsonl(test_qa_pairs, output_file)
         print(f"✓ Successfully wrote {len(test_qa_pairs)} Q&A pairs to {output_file}")
@@ -35,6 +37,8 @@ def test_basic_output():
             print("✓ All Q&A pairs were written correctly")
     except Exception as e:
         assert False, f"Error writing output: {e}"
+    finally:
+        Path(output_file).unlink(missing_ok=True)
 
 def test_file_discovery():
     """Test file discovery functionality."""
