@@ -30,3 +30,7 @@ MAX_WORKERS = 8
 
 GGUF_QUANT_TYPE = "q4_k_m"
 
+# Default training mode and device
+TRAIN_MODE = "full"
+DEVICE = "cpu"
+

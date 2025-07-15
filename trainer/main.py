@@ -2,6 +2,7 @@ import argparse
 import importlib
 import sys
 import os
+from trainer.config import TRAIN_MODE, DEVICE
 
 STEPS_DIR = os.path.join(os.path.dirname(__file__), 'steps')
 
@@ -16,10 +17,15 @@ STEP_SCRIPTS = {
 }
 
 def main():
+    """
+    Entrypoint for running a specific pipeline step.
+    Supports device and training mode selection for training steps.
+    """
     parser = argparse.ArgumentParser(description="Run a specific pipeline step.")
     parser.add_argument('--step', required=True, choices=STEP_SCRIPTS.keys(), help='Step to run (e.g., 1_download)')
     parser.add_argument('--verbose', action='store_true', help='Enable debug logging')
-    parser.add_argument('--device', choices=['cpu', 'gpu'], default='cpu', help='Device to use for training (cpu or gpu)')
+    parser.add_argument('--device', choices=['cpu', 'gpu'], default=DEVICE, help='Device to use for training (cpu or gpu)')
+    parser.add_argument('--train-mode', choices=['full', 'lora', 'sft'], default=TRAIN_MODE, help='Training mode: full, lora, or sft')
     args = parser.parse_args()
 
     # Setup logging
@@ -29,13 +35,17 @@ def main():
     step_module_name = f"trainer.steps.{STEP_SCRIPTS[args.step]}"
     try:
         step_module = importlib.import_module(step_module_name)
-        # Pass device argument to step if it accepts it
+        # Pass device and train_mode arguments to step if it accepts them
         if hasattr(step_module, 'main'):
             import inspect
-            if 'device' in inspect.signature(step_module.main).parameters:
-                step_module.main(device=args.device)
-            else:
-                step_module.main()
+            sig = inspect.signature(step_module.main)
+            params = sig.parameters
+            kwargs = {}
+            if 'device' in params:
+                kwargs['device'] = args.device
+            if 'train_mode' in params:
+                kwargs['train_mode'] = args.train_mode
+            step_module.main(**kwargs)
         else:
             print(f"No main() function found in {step_module_name}")
             sys.exit(1)
