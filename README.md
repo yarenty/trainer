@@ -62,9 +62,23 @@ This project provides a **modular, extensible pipeline** for training, fine-tuni
    cd llama.cpp
    cmake .
    make
+   
+   #yep.. any cuda did not work ... but re-check in future 
+   cmake -B build
+   cmake --build build --config Release 
    cd ..
    ```
    - This will build the necessary GGUF conversion and quantization tools.
+
+
+6. **Ollama Setup**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Test installation
+ollama --version
+```
 
 ## Download Source Repositories
 
@@ -122,9 +136,23 @@ git clone https://github.com/apache/arrow-rs.git arrow-rs
 6. **Ollama Import**: Create Modelfile and import into Ollama.
 7. **Evaluate**: Test model on Datafusion QA tasks.
 
-## Coding Conventions
-- Follows [coding-conventions.md](coding-conventions.md) and [python_guide.md](python_guide.md)
-- Google-style docstrings, error handling, and logging throughout
+
+## Troubleshooting
+
+### Common Issues:
+
+- CUDA Out of Memory: Reduce batch size, use gradient checkpointing
+- Slow Training: Enable mixed precision (fp16), use gradient accumulation
+- Poor Performance: Increase dataset size, adjust learning rate
+- Model Too Large: Use smaller base model or more aggressive quantization
+
+### Performance Tips:
+
+- Use unsloth for fastest training
+- Enable gradient_checkpointing to save memory
+- Use load_in_4bit=True for smaller models
+- Monitor GPU utilization with nvidia-smi
+
 
 ## License
 See `LICENSE` for details.
