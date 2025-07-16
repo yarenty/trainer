@@ -51,7 +51,7 @@ def train_cpu(model_dir, data_dir, output_dir, config):
         prompt = f"### Question:\n{example['question']}\n\n### Answer:\n{example['answer']}"
         return tokenizer(prompt, truncation=True, max_length=2048, padding='max_length')
     logging.info("Tokenizing dataset...")
-    tokenized_dataset = dataset.map(preprocess, batched=False)
+    tokenized_dataset = dataset.map(preprocess, batched=False, remove_columns=dataset.column_names)
 
     # 4. Training arguments (use config if available, else defaults)
     training_args = TrainingArguments(
