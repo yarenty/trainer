@@ -11,6 +11,7 @@ def train_gpu(model_dir, data_dir, output_dir, config):
     Train the model on GPU using the dataset in data_dir. Save fine-tuned model to output_dir.
     Uses Hugging Face Trainer and transformers for Llama 3.1. Enables mixed precision and larger batch size.
     """
+    logging.info(f"Running Python file: {__file__}")
     logging.info(f"[GPU] Training model from {model_dir} with data in {data_dir}, output to {output_dir}.")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -31,6 +32,7 @@ def train_gpu(model_dir, data_dir, output_dir, config):
     # Load all QA pairs into a list
     samples = []
     for file in data_files:
+        logging.info(f"Processing file: {file}")
         with open(file, 'r') as f:
             for line in f:
                 try:
@@ -61,7 +63,7 @@ def train_gpu(model_dir, data_dir, output_dir, config):
     training_args = TrainingArguments(
         output_dir=output_dir,
         num_train_epochs=getattr(config, 'NUM_EPOCHS', 3) if config else 3,
-        per_device_train_batch_size=getattr(config, 'BATCH_SIZE', 4) if config else 4,
+        per_device_train_batch_size=getattr(config, 'BATCH_SIZE', 1) if config else 1,
         gradient_accumulation_steps=getattr(config, 'GRAD_ACCUM_STEPS', 1) if config else 1,
         learning_rate=getattr(config, 'LEARNING_RATE', 2e-4) if config else 2e-4,
         logging_steps=10,

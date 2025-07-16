@@ -33,4 +33,5 @@ GGUF_QUANT_TYPE = "q4_k_m"
 # Default training mode and device
 TRAIN_MODE = "full"
 DEVICE = "cpu"
+BATCH_SIZE = 1
 

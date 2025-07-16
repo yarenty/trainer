@@ -10,6 +10,7 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     Train the model on CPU using the dataset in data_dir. Save fine-tuned model to output_dir.
     Uses Hugging Face Trainer and transformers for Llama 3.1.
     """
+    logging.info(f"Running Python file: {__file__}")
     logging.info(f"[CPU] Training model from {model_dir} with data in {data_dir}, output to {output_dir}.")
     os.makedirs(output_dir, exist_ok=True)
 
@@ -30,6 +31,7 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     # Load all QA pairs into a list
     samples = []
     for file in data_files:
+        logging.info(f"Processing file: {file}")
         with open(file, 'r') as f:
             for line in f:
                 try:
