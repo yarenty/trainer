@@ -17,6 +17,9 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     logging.info("Loading model and tokenizer...")
     model = AutoModelForCausalLM.from_pretrained(model_dir)
     tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    # Ensure pad_token is set
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
     # 2. Load and preprocess dataset (multi-level jsonl)
     logging.info("Loading and preprocessing dataset...")
