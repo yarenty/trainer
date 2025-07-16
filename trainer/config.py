@@ -35,4 +35,5 @@ GGUF_QUANT_TYPE = "q4_k_m"
 TRAIN_MODE = "full"
 DEVICE = "gpu"
 BATCH_SIZE = 4
+CONTEXT_SIZE = 2048
 

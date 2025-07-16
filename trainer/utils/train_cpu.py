@@ -4,6 +4,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments,
 from datasets import load_dataset, Dataset
 import glob
 import json
+from trainer.config import LOCAL_MODEL_DIR, MODELS_DIR, FINE_TUNED_MODEL, DATA_DIR, CONTEXT_SIZE
 
 def train_cpu(model_dir, data_dir, output_dir, config):
     """
@@ -54,7 +55,7 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     # 3. Tokenize dataset
     def preprocess(example):
         prompt = f"### Question:\n{example['question']}\n\n### Answer:\n{example['answer']}"
-        return tokenizer(prompt, truncation=True, max_length=1024, padding='max_length')
+        return tokenizer(prompt, truncation=True, max_length=CONTEXT_SIZE, padding='max_length')
     logging.info("Tokenizing dataset...")
     tokenized_dataset = dataset.map(preprocess, batched=False, remove_columns=dataset.column_names)
 
