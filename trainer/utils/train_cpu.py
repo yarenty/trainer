@@ -21,6 +21,9 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     # Ensure pad_token is set
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # Enable gradient checkpointing to save memory
+    if hasattr(model, 'gradient_checkpointing_enable'):
+        model.gradient_checkpointing_enable()
 
     # 2. Load and preprocess dataset (multi-level jsonl)
     logging.info("Loading and preprocessing dataset...")
@@ -51,7 +54,7 @@ def train_cpu(model_dir, data_dir, output_dir, config):
     # 3. Tokenize dataset
     def preprocess(example):
         prompt = f"### Question:\n{example['question']}\n\n### Answer:\n{example['answer']}"
-        return tokenizer(prompt, truncation=True, max_length=2048, padding='max_length')
+        return tokenizer(prompt, truncation=True, max_length=1024, padding='max_length')
     logging.info("Tokenizing dataset...")
     tokenized_dataset = dataset.map(preprocess, batched=False, remove_columns=dataset.column_names)
 
