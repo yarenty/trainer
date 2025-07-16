@@ -18,13 +18,14 @@ LLAMA_CPP_PATH = os.path.join(BASE_DIR, "llama.cpp")
 
 # Model and processing settings
 QA_MODEL = "llama3.2"
-DEFAULT_MODEL_NAME = "meta-llama/Llama-3.1-8B"
+DEFAULT_MODEL_NAME =  "meta-llama/Llama-3.2-3B-Instruct" 
+#Note: tried meta-llama/Llama-3.1-8B - but 80GB GPU is too small 
 
 # step-by-step fine-tuning
-FINE_TUNED_MODEL = "llama31-datafusion-instruct" 
-MERGED_MODEL = "llama31-datafusion-instruct-merged" 
-GGUF_MODEL = "llama31-datafusion-instruct-gguf"
-FINAL_OLLAMA = "llama31_datafusion"
+FINE_TUNED_MODEL = "llama32-datafusion-instruct" 
+MERGED_MODEL = "llama32-datafusion-instruct-merged" 
+GGUF_MODEL = "llama32-datafusion-instruct-gguf"
+FINAL_OLLAMA = "llama32_datafusion"
 
 MAX_WORKERS = 8
 
@@ -32,6 +33,6 @@ GGUF_QUANT_TYPE = "q4_k_m"
 
 # Default training mode and device
 TRAIN_MODE = "full"
-DEVICE = "cpu"
-BATCH_SIZE = 1
+DEVICE = "gpu"
+BATCH_SIZE = 4
 
