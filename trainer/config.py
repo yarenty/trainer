@@ -6,26 +6,34 @@ Store all shared variables/constants here for reuse by scripts and modules.
 
 import os
 
-# Example configuration variables (customize as needed)
-
 # Directory paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "..", "output")
-SOURCES_DIR = os.path.join(BASE_DIR, "..", "sources")
-MODELS_DIR = os.path.join(BASE_DIR, "..", "models")
-LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "..", "qwen2")
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # parent of trainer/
+DATA_DIR = os.path.join(BASE_DIR, "qa_data")
+SOURCES_DIR = os.path.join(BASE_DIR, "sources")
+# model
+MODELS_DIR = os.path.join(BASE_DIR,  "models")
+LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "local_model")
+# llama.cpp installation
+LLAMA_CPP_PATH = os.path.join(BASE_DIR, "llama.cpp")
 
 # Model and processing settings
 QA_MODEL = "llama3.2"
-DEFAULT_MODEL_NAME_CPU = "Qwen/Qwen2-7B-Instruct"
-DEFAULT_MODEL_NAME = "unsloth/Qwen2-7B-Instruct-bnb-4bit"
-FINE_TUNED_MODEL = "qwen2-7b-datafusion-instruct" 
-MERGED_MODEL = "qwen2-7b-datafusion-instruct_merged" 
-GGUF_MODEL = "qwen2-7b-atafusion-instruct-gguf"
-FINAL_OLLAMA = "qwen2_datafusionf"
+DEFAULT_MODEL_NAME =  "meta-llama/Llama-3.2-3B-Instruct" 
+#Note: tried meta-llama/Llama-3.1-8B - but 80GB GPU is too small 
+
+# step-by-step fine-tuning
+FINE_TUNED_MODEL = "llama32-datafusion-instruct" 
+MERGED_MODEL = "llama32-datafusion-instruct-merged" 
+GGUF_MODEL = "llama32-datafusion-instruct-gguf"
+FINAL_OLLAMA = "llama32_datafusion"
 
 MAX_WORKERS = 8
 
+GGUF_QUANT_TYPE = "q4_k_m"
 
-# Add more configuration variables as needed 
+# Default training mode and device
+TRAIN_MODE = "full"
+DEVICE = "gpu"
+BATCH_SIZE = 4
+CONTEXT_SIZE = 2048
+
