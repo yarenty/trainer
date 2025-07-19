@@ -1,5 +1,20 @@
 # Changelog
 
+## 2027-07-19
+### Added
+- Step 8: Automated script for uploading the fine-tuned model and tokenizer to Hugging Face (`trainer/steps/8_upload_to_hf.py`).
+- Model card (`README.md`) with badges, metrics table, and usage instructions for the DataFusion-instruct model.
+- Example badges for license, downloads, likes, and transformers compatibility.
+- Metrics section with placeholders for Exact Match, F1 Score, and Human Rating.
+
+### Changed
+- Prepared the model directory for public release on Hugging Face Hub.
+
+### Notes
+- The Llama 3.2 DataFusion-instruct model was already trained and generated prior to this update.
+- Next steps: update metrics with real evaluation results after public deployment. 
+
+
 ## 2025-07-15
 ### Added
 - Modular pipeline with step-by-step scripts for LLM training, merging, conversion, quantization, Ollama import, and evaluation.
@@ -27,3 +42,4 @@
   - Sequential processing of files
   - Basic Q&A extraction and output
   - Minimal error handling and logging 
+
