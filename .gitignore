@@ -40,3 +40,5 @@ llama.cpp/
 llama.cpp/*
 
 qwen2
+
+.DS_Store
