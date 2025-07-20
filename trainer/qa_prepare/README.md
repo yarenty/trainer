@@ -1,6 +1,6 @@
-# Q&A Generation Package
+# Q&A Generation Module
 
-A modular Python package for generating question-answer pairs from documentation and code files using LLM-based processing with robust fallback mechanisms.
+A modular Python package for generating question-answer pairs from documentation and code files using LLM-based processing with robust fallback mechanisms. This is now a reusable Python module/package, not just a script.
 
 ## Overview
 
@@ -15,14 +15,22 @@ This package provides a clean, modular architecture for processing repositories 
 ## Architecture
 
 ```
-src/
+trainer/qa_prepare/
 ├── __init__.py           # Package initialization and exports
 ├── text_cleaner.py       # Text cleaning utilities
-├── chunker.py           # Text chunking strategies
-├── llm_qa.py            # LLM Q&A generation with fallbacks
-├── output_converter.py  # Output formatting and file operations
-├── file_processor.py    # Main processing coordination
-└── README.md           # This file
+├── chunker.py            # Text chunking strategies
+├── llm_qa.py             # LLM Q&A generation with fallbacks
+├── output_converter.py   # Output formatting and file operations
+├── file_processor.py     # Main processing coordination
+└── README.md             # This file
+```
+
+## Installation & Import
+
+Place the `trainer/qa_prepare` directory in your Python path or install as part of your project. Then import classes as follows:
+
+```python
+from trainer.qa_prepare import TextCleaner, Chunker, LLM_QA, OutputConverter, FileProcessor
 ```
 
 ## Classes
@@ -32,7 +40,7 @@ src/
 Handles cleaning and preprocessing of text content.
 
 ```python
-from src import TextCleaner
+from trainer.qa_prepare import TextCleaner
 
 cleaner = TextCleaner()
 
@@ -51,7 +59,7 @@ clean_text = cleaner.remove_boilerplate(text)
 Manages different strategies for breaking text into manageable chunks.
 
 ```python
-from src import Chunker
+from trainer.qa_prepare import Chunker
 
 chunker = Chunker()
 
@@ -73,7 +81,7 @@ chunks = chunker.chunk_code_by_blocks(code_text, min_chars=100)
 Handles LLM interactions for Q&A generation with robust fallback mechanisms.
 
 ```python
-from src import LLM_QA
+from trainer.qa_prepare import LLM_QA
 import ollama
 
 client = ollama.Client()
@@ -88,7 +96,7 @@ qa_pair = llm_qa.generate_qa_pair(text_chunk)
 Manages output formatting, validation, and file operations.
 
 ```python
-from src import OutputConverter
+from trainer.qa_prepare import OutputConverter
 
 converter = OutputConverter()
 
@@ -110,7 +118,7 @@ converter.merge_jsonl_files(["file1.jsonl", "file2.jsonl"], "merged.jsonl")
 Coordinates the overall processing workflow and manages concurrency.
 
 ```python
-from src import FileProcessor
+from trainer.qa_prepare import FileProcessor
 import ollama
 
 client = ollama.Client()
@@ -133,7 +141,7 @@ summary = processor.process_repository(
 ### Basic Usage
 
 ```python
-from src import FileProcessor
+from trainer.qa_prepare import FileProcessor
 import ollama
 
 # Initialize
@@ -153,7 +161,7 @@ print(f"Generated {summary['total_qa_pairs']} Q&A pairs")
 ### Custom Processing
 
 ```python
-from src import TextCleaner, Chunker, LLM_QA, OutputConverter
+from trainer.qa_prepare import TextCleaner, Chunker, LLM_QA, OutputConverter
 import ollama
 
 # Initialize components
@@ -175,29 +183,6 @@ for chunk in chunks:
         qa_pairs.append(qa_pair)
 
 converter.write_qa_pairs_to_jsonl(qa_pairs, "custom_output.jsonl")
-```
-
-### Using the Modular Script
-
-```bash
-# Process a single repository
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repo \
-    --repo-name my-repo \
-    --output-dir ./output
-
-# Process multiple repositories
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repos \
-    --output-dir ./output \
-    --batch-mode
-
-# Use different model and enable verbose logging
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repo \
-    --model llama3.1 \
-    --verbose \
-    --output-dir ./output
 ```
 
 ## Features
