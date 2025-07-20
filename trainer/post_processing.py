@@ -50,7 +50,7 @@ def main():
     # Recursively find all .jsonl files in output/ subdirectories
     for dirpath, _, _ in os.walk(DATA_DIR):
         for jsonl_file in glob(os.path.join(dirpath, '*.jsonl')):
-            # process_jsonl_file(jsonl_file)
+            process_jsonl_file(jsonl_file)
             apply_end_marker(jsonl_file)
 
 if __name__ == "__main__":
