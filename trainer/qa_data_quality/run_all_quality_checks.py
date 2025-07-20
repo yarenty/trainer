@@ -8,7 +8,7 @@ Usage:
     python -m trainer.qa_data_quality.run_all_quality_checks
 """
 import logging
-from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator
+from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator, QAPromptTemplateChecker
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -86,6 +86,19 @@ def main():
                 print(f"      Preview: {flagged['answer']}")
     else:
         print("  No code block or formatting issues flagged.")
+
+    # Step 6: Check prompt/response template compliance
+    template_checker = QAPromptTemplateChecker()
+    template_report = template_checker.check_all_files()
+    print("\nPrompt Template Compliance Report:")
+    if template_report:
+        for file, file_report in template_report.items():
+            print(f"\nFile: {file}")
+            print(f"  Flagged pairs: {file_report['num_flagged']}")
+            for flagged in file_report['flagged']:
+                print(f"    Line {flagged['line']}: Q: {flagged['question']} | A: {flagged['answer']}")
+    else:
+        print("  All Q/A pairs match the expected template.")
 
     # Future steps: Add more checks here as new modules/classes are implemented
     # Example:
