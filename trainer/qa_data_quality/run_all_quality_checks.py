@@ -8,7 +8,7 @@ Usage:
     python -m trainer.qa_data_quality.run_all_quality_checks
 """
 import logging
-from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger
+from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -72,6 +72,20 @@ def main():
                 print(f"    Line {flagged['line']}: {flagged['question']}")
     else:
         print("  No ambiguous or multi-answer questions flagged.")
+
+    # Step 5: Validate code blocks and formatting in answers
+    code_validator = QACodeBlockValidator()
+    code_report = code_validator.validate_all_files()
+    print("\nCode Block Validation Report:")
+    if code_report:
+        for file, file_report in code_report.items():
+            print(f"\nFile: {file}")
+            print(f"  Flagged answers: {file_report['num_flagged']}")
+            for flagged in file_report['flagged']:
+                print(f"    Line {flagged['line']}: {', '.join(flagged['issues'])}")
+                print(f"      Preview: {flagged['answer']}")
+    else:
+        print("  No code block or formatting issues flagged.")
 
     # Future steps: Add more checks here as new modules/classes are implemented
     # Example:
