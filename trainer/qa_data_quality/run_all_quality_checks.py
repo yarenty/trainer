@@ -8,7 +8,7 @@ Usage:
     python -m trainer.qa_data_quality.run_all_quality_checks
 """
 import logging
-from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator
+from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -44,6 +44,34 @@ def main():
                 print(f"    - {issue}")
         else:
             print("  No issues found.")
+
+    # Step 3: Analyze topic/answer balance
+    analyzer = QABalanceAnalyzer()
+    balance_report = analyzer.analyze_all_files()
+    print("\nBalance Analysis Report:")
+    for topic, stats in balance_report['topic_stats'].items():
+        print(f"\nTopic: {topic}")
+        print(f"  Questions: {stats['count']}")
+        print(f"  Answer length (min/mean/median/max/stdev): {stats['answer_length_min']} / {stats['answer_length_mean']} / {stats['answer_length_median']} / {stats['answer_length_max']} / {stats['answer_length_stdev']}")
+    if balance_report['imbalance_flags']:
+        print("\nImbalance Flags:")
+        for flag in balance_report['imbalance_flags']:
+            print(f"  - {flag}")
+    else:
+        print("\nNo major imbalances detected.")
+
+    # Step 4: Flag ambiguous or multi-answer questions
+    flagger = QAAmbiguityFlagger()
+    ambiguity_report = flagger.flag_all_files()
+    print("\nAmbiguity Flagging Report:")
+    if ambiguity_report:
+        for file, file_report in ambiguity_report.items():
+            print(f"\nFile: {file}")
+            print(f"  Flagged questions: {file_report['num_flagged']}")
+            for flagged in file_report['flagged']:
+                print(f"    Line {flagged['line']}: {flagged['question']}")
+    else:
+        print("  No ambiguous or multi-answer questions flagged.")
 
     # Future steps: Add more checks here as new modules/classes are implemented
     # Example:

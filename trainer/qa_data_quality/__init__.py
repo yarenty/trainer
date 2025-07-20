@@ -4,4 +4,6 @@ qa_data_quality: Tools for enforcing data quality, format, and validation for Q/
 This package provides utilities to automate and enforce the prevention steps outlined in pitfalls_plan.md.
 """
 from .format_enforcer import QAFormatEnforcer
-from .deduplicator import QADeduplicator 
+from .deduplicator import QADeduplicator
+from .balance_analyzer import QABalanceAnalyzer
+from .ambiguity_flagger import QAAmbiguityFlagger 
