@@ -8,7 +8,7 @@ Usage:
     python -m trainer.qa_data_quality.run_all_quality_checks
 """
 import logging
-from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator, QAPromptTemplateChecker
+from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator, QAPromptTemplateChecker, QAOutputPostProcessor
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -99,6 +99,20 @@ def main():
                 print(f"    Line {flagged['line']}: Q: {flagged['question']} | A: {flagged['answer']}")
     else:
         print("  All Q/A pairs match the expected template.")
+
+    # Step 7: Post-process outputs (trim at end marker, flag verbosity/length issues)
+    postproc = QAOutputPostProcessor()
+    postproc_report = postproc.process_all_files()
+    print("\nOutput Post-Processing Report:")
+    if postproc_report:
+        for file, file_report in postproc_report.items():
+            print(f"\nFile: {file}")
+            print(f"  Flagged outputs: {file_report['num_flagged']}")
+            for flagged in file_report['flagged']:
+                print(f"    Line {flagged['line']}: {', '.join(flagged['issues'])}")
+                print(f"      Preview: {flagged['answer']}")
+    else:
+        print("  All outputs trimmed and within length limits.")
 
     # Future steps: Add more checks here as new modules/classes are implemented
     # Example:
