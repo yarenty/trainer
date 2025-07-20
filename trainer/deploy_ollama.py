@@ -141,6 +141,7 @@ def main():
     modelfile_content = f"""FROM {final_gguf_path}
 PARAMETER stop "### Instruction:"
 PARAMETER stop "### Response:"
+PARAMETER stop "### End"
 """
     modelfile_path = os.path.join(gguf_output_dir, "Modelfile")
     with open(modelfile_path, "w") as f:

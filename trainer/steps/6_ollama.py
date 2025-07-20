@@ -25,9 +25,10 @@ def main():
 
     # Write Modelfile
     modelfile_content = (
-        f"FROM {quantized_gguf}\n"
+        f"FROM {FINAL_OLLAMA}.gguf\n"
         f'PARAMETER stop "### Instruction:"\n'
         f'PARAMETER stop "### Response:"\n'
+        f'PARAMETER stop "### End"\n'
     )
     with open(modelfile_path, "w") as f:
         f.write(modelfile_content)
