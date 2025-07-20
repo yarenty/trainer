@@ -42,3 +42,11 @@ llama.cpp/*
 qwen2
 
 .DS_Store
+
+# Ignore large model files by default
+*.gguf
+*.safetensors
+*.bin
+
+# If using Git LFS, these files will be tracked by LFS and not ignored
+# (Git LFS rules in .gitattributes take precedence)

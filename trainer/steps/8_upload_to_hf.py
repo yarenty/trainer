@@ -6,15 +6,13 @@ from trainer import config
 # User must be logged in via huggingface-cli login
 # Or set HF_TOKEN as env variable
 
-# Set your Hugging Face repo name (e.g., "username/model-name")
-REPO_ID = os.environ.get("HF_REPO_ID") or "yarenty/" + config.FINE_TUNED_MODEL
-MODEL_DIR = os.path.join(config.MODELS_DIR, config.FINE_TUNED_MODEL)
-TOKENIZER_DIR = MODEL_DIR  # adjust if tokenizer is elsewhere
+def main():
+    # Set your Hugging Face repo name (e.g., "username/model-name")
+    REPO_ID = os.environ.get("HF_REPO_ID") or "yarenty/" + config.FINE_TUNED_MODEL
+    MODEL_DIR = os.path.join(config.MODELS_DIR, config.FINE_TUNED_MODEL)
+    TOKENIZER_DIR = MODEL_DIR  # adjust if tokenizer is elsewhere
+    GGUF_PATH = os.path.join(config.MODELS_DIR, config.GGUF_MODEL)
 
-# Optionally, allow GGUF upload if needed
-GGUF_PATH = os.path.join(config.MODELS_DIR, config.GGUF_MODEL)
-
-if __name__ == "__main__":
     # Login (optional if already logged in)
     hf_token = os.environ.get("HF_TOKEN")
     if hf_token:
@@ -38,4 +36,7 @@ if __name__ == "__main__":
             repo_id=REPO_ID,
             repo_type="model"
         )
-        print(f"GGUF file uploaded to https://huggingface.co/{REPO_ID}/blob/main/{os.path.basename(GGUF_PATH)}") 
+        print(f"GGUF file uploaded to https://huggingface.co/{REPO_ID}/blob/main/{os.path.basename(GGUF_PATH)}")
+
+if __name__ == "__main__":
+    main() 
