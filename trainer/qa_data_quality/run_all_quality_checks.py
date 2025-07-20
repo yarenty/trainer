@@ -8,7 +8,7 @@ Usage:
     python -m trainer.qa_data_quality.run_all_quality_checks
 """
 import logging
-from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator, QAPromptTemplateChecker, QAOutputPostProcessor
+from trainer.qa_data_quality import QAFormatEnforcer, QADeduplicator, QABalanceAnalyzer, QAAmbiguityFlagger, QACodeBlockValidator, QAPromptTemplateChecker, QAOutputPostProcessor, QAEedgeCaseSampler
 
 def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
@@ -113,6 +113,20 @@ def main():
                 print(f"      Preview: {flagged['answer']}")
     else:
         print("  All outputs trimmed and within length limits.")
+
+    # Step 8: Sample edge cases for human review
+    sampler = QAEedgeCaseSampler()
+    edge_report = sampler.sample_all_files()
+    print("\nEdge Case Sampling Report:")
+    if edge_report:
+        for file, file_report in edge_report.items():
+            print(f"\nFile: {file}")
+            for case in file_report['edge_cases']:
+                print(f"  [{case['type']}] Line {case['line']}: Q: {case['question'][:60]} | A: {case['answer']}")
+                if 'topic' in case:
+                    print(f"    Topic: {case['topic']}")
+    else:
+        print("  No edge cases sampled.")
 
     # Future steps: Add more checks here as new modules/classes are implemented
     # Example:
