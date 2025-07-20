@@ -1,6 +1,6 @@
 # Q&A Generation Module
 
-A modular Python package for generating question-answer pairs from documentation and code files using LLM-based processing with robust fallback mechanisms. This is now a reusable Python module/package, not just a script.
+A modular Python package for generating question-answer pairs from documentation and code files using LLM-based processing with robust fallback mechanisms. This is a reusable Python module/package.
 
 ## Overview
 

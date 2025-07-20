@@ -2,7 +2,7 @@
 
 A modular Python package for enforcing data quality, format, and validation for Q/A datasets. Provides automated tools to prevent common pitfalls in Q/A data for LLM training and evaluation.
 
-**Note:** This module is designed to automate the prevention steps outlined in [pitfalls_plan.md](../../pitfalls_plan.md), ensuring your data pipeline avoids the most common issues in LLM fine-tuning.
+**Note:** This module is designed to automate the prevention steps outlined in [pitfalls_plan.md](../../pitfalls_plan.md), ensuring data pipeline avoids the most common issues in LLM fine-tuning.
 
 ## Overview
 
