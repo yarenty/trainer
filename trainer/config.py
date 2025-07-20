@@ -37,3 +37,5 @@ DEVICE = "gpu"
 BATCH_SIZE = 4
 CONTEXT_SIZE = 2048
 
+END_MARKER = "### End"
+

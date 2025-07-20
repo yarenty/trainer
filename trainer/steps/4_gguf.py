@@ -32,10 +32,11 @@ def main():
             f"convert_hf_to_gguf.py not found at {convert_script}. Check your llama.cpp path."
         )
         return
-
+    
+    logging.info (f"!!!IMPORTANT!!: Make sure this command is using the same python version as your venv!!!")
     # Build command
     cmd = [
-        "python3",
+        "python3",  # Use the correct Python interpreter
         convert_script,
         merged_model_dir,
         "--outfile", gguf_outfile,
