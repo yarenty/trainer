@@ -42,7 +42,7 @@ PARAMETER stop "### Response:"
 PARAMETER stop "### End"
 
 # Generation parameters to prevent infinite loops
-PARAMETER num_predict 512
+PARAMETER num_predict 1024
 PARAMETER repeat_penalty 1.2
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9

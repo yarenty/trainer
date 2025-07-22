@@ -16,7 +16,7 @@ PARAMETER stop "### Response:"
 PARAMETER stop "### End"
 
 # Generation parameters to prevent infinite loops
-PARAMETER num_predict 512
+PARAMETER num_predict 1024
 PARAMETER repeat_penalty 1.2
 PARAMETER temperature 0.7
 PARAMETER top_p 0.9
@@ -25,4 +25,4 @@ PARAMETER top_p 0.9
 # TAGS ["llama3", "datafusion", "qa", "rust", "sql", "public"]
 # DESCRIPTION "A fine-tuned LLM specialized in Rust and DataFusion (SQL engine) Q&A. Produces idiomatic Rust code, DataFusion SQL examples, clear documentation, and robust test cases, with robust stop sequences and infinite loop prevention."
 
-LICENSE "apache-2.0"
+LICENSE "llama-3.2"

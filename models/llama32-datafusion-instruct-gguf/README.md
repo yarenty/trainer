@@ -1,56 +1,82 @@
+---
+license: meta-llama/llama-3-2
+base_model: yarenty/llama32-datafusion-instruct
+tags:
+- text-generation
+- instruction
+- datafusion
+- rust
+- code
+- gguf
+---
+
 # Llama 3.2 DataFusion Instruct (GGUF)
 
-This is a fine-tuned Llama 3.2 model for DataFusion code and Q&A, exported in GGUF format for use with compatible inference engines (e.g., llama.cpp, Ollama).
+This repository contains the GGUF version of the `yarenty/llama32-datafusion-instruct` model, quantized for efficient inference on CPU and other compatible hardware.
+
+For full details on the model, including its training procedure, data, intended use, and limitations, please see the **[full model card](https://huggingface.co/yarenty/llama32-datafusion-instruct)**.
 
 ## Model Details
 
-- **Base model:** Llama 3.2
-- **Fine-tuned for:** DataFusion, code Q&A, instruction following
+- **Base model:** [yarenty/llama32-datafusion-instruct](https://huggingface.co/yarenty/llama32-datafusion-instruct)
 - **Format:** GGUF
-- **Stop sequences:**
-  - `### Instruction:`
-  - `### Response:`
-- **Files included:**
-  - `llama32_datafusion.gguf` (main model)
-  - `Modelfile` (Ollama/llama.cpp config)
+- **Quantization:** `Q4_K_M` (Please verify and change if different)
+
+## Prompt Template
+
+This model follows the same instruction prompt template as the base model:
+
+```
+### Instruction:
+{Your question or instruction here}
+
+### Response:
+```
 
 ## Usage
 
+These files are compatible with tools like `llama.cpp` and `Ollama`.
+
 ### With Ollama
 
-```bash
-ollama create llama32-datafusion-instruct-gguf -f Modelfile
-ollama run llama32-datafusion-instruct-gguf
-```
+1.  Create the `Modelfile`:
+    ```
+    FROM ./llama32_datafusion.gguf
+    TEMPLATE """### Instruction:
+    {{ .Prompt }}
+
+    ### Response:
+    """
+    PARAMETER stop "### Instruction:"
+    PARAMETER stop "### Response:"
+    PARAMETER stop "### End"
+    ```
+
+2.  Create and run the Ollama model:
+    ```bash
+    ollama create llama32-datafusion-instruct-gguf -f Modelfile
+    ollama run llama32-datafusion-instruct-gguf "How do I use the Ballista scheduler?"
+    ```
 
 ### With llama.cpp
 
 ```bash
-./main -m llama32_datafusion.gguf --stop "### Instruction:" --stop "### Response:"
+./main -m llama32_datafusion.gguf --color -p "### Instruction:\nHow do I use the Ballista scheduler?\n\n### Response:" -n 256 --stop "### Instruction:" --stop "### Response:" --stop "### End"
 ```
-
-## Training Data
-
-- Q&A pairs and code from the DataFusion project and related documentation.
-- Data cleaning, deduplication, and formatting enforced as per [pitfalls_plan.md](../pitfalls_plan.md).
-
-## License
-
-[Specify your license here, e.g., Apache-2.0, MIT, or custom.]
 
 ## Citation
 
-If you use this model, please cite:
+If you use this model, please cite the original base model:
 ```
-@misc{llama32-datafusion-instruct-gguf,
+@misc{yarenty_2025_llama32_datafusion_instruct,
   author = {yarenty},
-  title = {Llama 3.2 DataFusion Instruct (GGUF)},
+  title = {Llama 3.2 DataFusion Instruct},
   year = {2025},
-  howpublished = {Hugging Face},
-  url = {https://huggingface.co/yarenty/llama32-datafusion-instruct-gguf}
+  publisher = {Hugging Face},
+  journal = {Hugging Face repository},
+  howpublished = {\url{https://huggingface.co/yarenty/llama32-datafusion-instruct}}
 }
 ```
 
 ## Contact
-
-For questions or issues, please open an issue on the [GitHub repository](https://github.com/yarenty/trainer) or contact [yarenty@gmail.com](mailto:yarenty@gmail.com). 
+For questions or feedback, please open an issue on the Hugging Face repository or the [source GitHub repository](https://github.com/yarenty/trainer).

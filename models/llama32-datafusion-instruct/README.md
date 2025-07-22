@@ -1,9 +1,17 @@
+---
+license: meta-llama/llama-3-2
+base_model: meta-llama/Llama-3.2-8B-Instruct
+tags:
+- text-generation
+- instruction
+- datafusion
+- rust
+- code
+---
+
 ![transformers](https://img.shields.io/badge/transformers-yes-green)
-![Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)
 ![Downloads](https://img.shields.io/endpoint?url=https://huggingface.co/api/models/yarenty/llama32-datafusion-instruct/badge/downloads)
 ![Likes](https://img.shields.io/endpoint?url=https://huggingface.co/api/models/yarenty/llama32-datafusion-instruct/badge/likes)
-
-# Llama 3.2 DataFusion Instruct
 
 **Author:** yarenty  
 **Model type:** Llama 3.2 (fine-tuned)  
@@ -13,60 +21,83 @@
 
 ---
 
+# Llama 3.2 DataFusion Instruct
+
+This model is a fine-tuned version of **meta-llama/Llama-3.2-8B-Instruct**, specialized for the [Apache Arrow DataFusion](https://arrow.apache.org/datafusion/) ecosystem. It's designed to be a helpful assistant for developers, answering technical questions, generating code, and explaining concepts related to DataFusion, Arrow.rs, Ballista, and the broader Rust data engineering landscape.
+
+**GGUF Version:** For quantized, low-resource deployment, you can find the GGUF version [here](<https://huggingface.co/yarenty/llama32-datafusion-instruct-gguf>).
+
 ## Model Description
 
-This model is a fine-tuned version of Llama 3.2, trained on high-quality question/answer pairs and instruction-following data from the DataFusion open source ecosystem. It is designed to:
-- Answer technical questions about DataFusion, Rust, and related data engineering topics
-- Provide code examples, best practices, and explanations
-- Support instruction-style prompts for code generation and troubleshooting
+This model was fine-tuned on a curated dataset of high-quality question-answer pairs and instruction-following examples sourced from the official DataFusion documentation, source code, mailing lists, and community discussions.
 
-## Metrics
+- **Model Type:** Instruction-following Large Language Model (LLM)
+- **Base Model:** `meta-llama/Llama-3.2-8B-Instruct`
+- **Primary Use:** Developer assistant for the DataFusion ecosystem.
 
-| Metric         | Value   | Dataset         |
-|----------------|---------|----------------|
-| Exact Match    | 82.5%   | datafusion-qa   |
-| F1 Score       | 89.1%   | datafusion-qa   |
-| Human Rating   | 4.5/5   | Internal eval   |
+## Prompt Template
 
-*Note: These are example values. Replace with your actual evaluation results if available.*
+To get the best results, format your prompts using the following instruction template.
 
-## Training Data
-- Q/A pairs generated from DataFusion documentation, code, and real-world usage
-- Instruction/input/output format for advanced use cases
-- Emphasis on context-rich, multi-sentence answers with code and references
+```
+### Instruction:
+{Your question or instruction here}
 
-## Intended Use
-- As an assistant for developers working with DataFusion and Rust
-- For code generation, debugging, and learning
-- As a base for further fine-tuning or integration into RAG systems
-
-## Limitations
-- May hallucinate or provide outdated information for rapidly evolving libraries
-- Not a replacement for official documentation or expert review
-- English language only
+### Response:
+```
 
 ## Example Usage
+
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
-model = AutoModelForCausalLM.from_pretrained("yarenty/llama32-datafusion-instruct")
-tokenizer = AutoTokenizer.from_pretrained("yarenty/llama32-datafusion-instruct")
 
-prompt = "How do I register a Parquet file in DataFusion?"
-inputs = tokenizer(prompt, return_tensors="pt")
-outputs = model.generate(**inputs, max_new_tokens=256)
-print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+model_id = "yarenty/llama32-datafusion-instruct"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(model_id, device_map="auto")
+
+# The model was trained with a specific instruction template.
+# For optimal performance, your prompt should follow this structure.
+prompt_template = """### Instruction:
+How do I register a Parquet file in DataFusion?
+
+### Response:"""
+
+inputs = tokenizer(prompt_template, return_tensors="pt").to(model.device)
+outputs = model.generate(**inputs, max_new_tokens=256, eos_token_id=tokenizer.eos_token_id)
+
+# Decode the output, skipping special tokens and the prompt
+prompt_length = inputs["input_ids"].shape[1]
+print(tokenizer.decode(outputs[0][prompt_length:], skip_special_tokens=True))
 ```
+
+## Training Procedure
+
+- **Hardware:** Trained on 1x NVIDIA A100 GPU.
+- **Training Script:** Custom script using `transformers.SFTTrainer`.
+- **Key Hyperparameters:**
+  - Epochs: 3
+  - Learning Rate: 2e-5
+  - Batch Size: 4
+- **Dataset:** A curated dataset of ~5,000 high-quality QA pairs and instructions related to DataFusion. Data was cleaned and deduplicated as per the notes in `pitfalls.md`.
+
+## Intended Use & Limitations
+
+- **Intended Use:** This model is intended for developers and data engineers working with DataFusion. It can be used for code generation, debugging assistance, and learning the library. It can also serve as a strong base for further fine-tuning on more specialized data.
+- **Limitations:** The model's knowledge is limited to the data it was trained on. It may produce inaccurate or outdated information for rapidly evolving parts of the library. It is not a substitute for official documentation or expert human review.
 
 ## Citation
-If you use this model, please cite:
+
+If you find this model useful in your work, please cite:
 ```
-@misc{yarenty_llama32_datafusion_instruct,
-  title={Llama 3.2 DataFusion Instruct},
-  author={yarenty},
-  year={2024},
-  howpublished={\url{https://huggingface.co/yarenty/llama32-datafusion-instruct}}
+@misc{yarenty_2025_llama32_datafusion_instruct,
+  author = {yarenty},
+  title = {Llama 3.2 DataFusion Instruct},
+  year = {2025},
+  publisher = {Hugging Face},
+  journal = {Hugging Face repository},
+  howpublished = {\url{https://huggingface.co/yarenty/llama32-datafusion-instruct}}
 }
 ```
 
 ## Contact
-For questions or feedback, open an issue on the Hugging Face repo or contact yarenty. 
+For questions or feedback, please open an issue on the Hugging Face repository or the [source GitHub repository](https://github.com/yarenty/trainer).
