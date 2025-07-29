@@ -91,33 +91,33 @@ def main():
     # else:
     #     print("  No ambiguous or multi-answer questions flagged.")
 
-    # Step 5: Auto-correct code blocks and formatting in answers
-    code_validator = QACodeBlockValidator()
-    corrections = code_validator.auto_correct_all_files()
-    print("\nCode Block Auto-Correction Report:")
-    if corrections:
-        for file, file_report in corrections.items():
-            print(f"\nFile: {file}")
-            print(f"  Corrections made: {file_report['num_corrected']}")
-            for corr in file_report['corrected']:
-                print(f"    Line {corr['line']}: {', '.join(corr['fixes'])}")
-                print(f"      Original: {corr['original']}")
-                print(f"      Fixed:    {corr['fixed']}")
-    else:
-        print("  No auto-corrections needed.")
+    # # Step 5: Auto-correct code blocks and formatting in answers
+    # code_validator = QACodeBlockValidator()
+    # corrections = code_validator.auto_correct_all_files()
+    # print("\nCode Block Auto-Correction Report:")
+    # if corrections:
+    #     for file, file_report in corrections.items():
+    #         print(f"\nFile: {file}")
+    #         print(f"  Corrections made: {file_report['num_corrected']}")
+    #         for corr in file_report['corrected']:
+    #             print(f"    Line {corr['line']}: {', '.join(corr['fixes'])}")
+    #             print(f"      Original: {corr['original']}")
+    #             print(f"      Fixed:    {corr['fixed']}")
+    # else:
+    #     print("  No auto-corrections needed.")
 
-    # Step 5b: Validate code blocks and formatting in answers (after auto-correction)
-    code_report = code_validator.validate_all_files()
-    print("\nCode Block Validation Report:")
-    if code_report:
-        for file, file_report in code_report.items():
-            print(f"\nFile: {file}")
-            print(f"  Flagged answers: {file_report['num_flagged']}")
-            for flagged in file_report['flagged']:
-                print(f"    Line {flagged['line']}: {', '.join(flagged['issues'])}")
-                print(f"      Preview: {flagged['answer']}")
-    else:
-        print("  No code block or formatting issues flagged.")
+    # # Step 5b: Validate code blocks and formatting in answers (after auto-correction)
+    # code_report = code_validator.validate_all_files()
+    # print("\nCode Block Validation Report:")
+    # if code_report:
+    #     for file, file_report in code_report.items():
+    #         print(f"\nFile: {file}")
+    #         print(f"  Flagged answers: {file_report['num_flagged']}")
+    #         for flagged in file_report['flagged']:
+    #             print(f"    Line {flagged['line']}: {', '.join(flagged['issues'])}")
+    #             print(f"      Preview: {flagged['answer']}")
+    # else:
+    #     print("  No code block or formatting issues flagged.")
 
     # # Step 6: Check prompt/response template compliance
     # template_checker = QAPromptTemplateChecker()

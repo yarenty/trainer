@@ -12,7 +12,7 @@ DATA_DIR = os.path.join(BASE_DIR, "qa_data_fixed")
 SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 # model
 MODELS_DIR = os.path.join(BASE_DIR,  "models")
-LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "local_qwen")
+LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "local_qwen25")
 # llama.cpp installation
 LLAMA_CPP_PATH = os.path.join(BASE_DIR, "llama.cpp")
 
