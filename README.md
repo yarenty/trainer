@@ -9,6 +9,34 @@ This project provides a **modular, extensible pipeline** for training, fine-tuni
 - Ollama Modelfile creation and import
 - Evaluation and compatibility checks
 
+## Project Structure
+
+```
+.
+├── trainer/
+│   ├── qa_prepare/         # Q&A generation from code/docs ([README](trainer/qa_prepare/README.md))
+│   ├── qa_data_quality/    # Data quality checks and cleaning ([README](trainer/qa_data_quality/README.md))
+│   ├── steps/              # Modular pipeline step scripts ([README](trainer/steps/README.md))
+│   ├── utils/              # Shared utility functions ([README](trainer/utils/README.md))
+│   ├── config.py           # Central configuration
+│   ├── main.py             # (Optional) Main CLI entry point
+│   ├── prepare_data.py     # Data preparation script
+│   ├── post_processing.py  # Output post-processing
+│   └── ...                 # Other helpers
+├── qa_data/                # Prepared Q&A data
+├── sources/                # Source code repositories for data prep
+└── ...
+```
+
+## Modules Overview
+
+- **[trainer/qa_prepare](trainer/qa_prepare/README.md):** Generate Q&A pairs from code and documentation using LLMs.
+- **[trainer/qa_data_quality](trainer/qa_data_quality/README.md):** Enforce data quality, deduplication, and formatting for Q/A datasets.
+- **[trainer/steps](trainer/steps/README.md):** Modular scripts for each pipeline step (download, train, merge, convert, quantize, evaluate, upload).
+- **[trainer/utils](trainer/utils/README.md):** Shared utilities for data loading, logging, and training.
+
+See each module’s README for detailed usage and API documentation.
+
 ## Features
 - Step-by-step scripts for each stage of the pipeline (see `trainer/steps/`)
 - CLI with `--train-mode` (`full`, `lora`, `sft`) and `--device` (`cpu`, `gpu`)
@@ -16,7 +44,6 @@ This project provides a **modular, extensible pipeline** for training, fine-tuni
 - Utilities for each training mode and shared data processing
 - Google-style docstrings, logging, and robust error handling
 - Follows strict coding conventions for readability and maintainability
-
 
 ## Installation
 
@@ -70,7 +97,6 @@ This project provides a **modular, extensible pipeline** for training, fine-tuni
    ```
    - This will build the necessary GGUF conversion and quantization tools.
 
-
 6. **Ollama Setup**
 ```bash
 # Install Ollama
@@ -102,29 +128,41 @@ git clone https://github.com/apache/arrow-rs.git arrow-rs
 2. **Example data preparation script:**
    - (You may need to write or adapt a script for your specific sources. See `train/prepare_data.py` for examples.)
 
+**Tip:** Always run data quality checks (`trainer/qa_data_quality`) on your Q&A data before training to ensure high-quality results.
+
 ## Pipeline Usage
 
-1. **Configure your pipeline**
-   - Edit `trainer/config.py` to set model names, paths, and defaults (`TRAIN_MODE`, `DEVICE`).
+You can run the pipeline using the main CLI or by executing individual step scripts for more control:
 
-2. **Run each step**
-   - Use the CLI to run each step in order, or rerun any step as needed:
-     ```sh
-     python -m trainer.main --step 1_download
-     python -m trainer.main --step 2_train --train-mode lora --device gpu
-     python -m trainer.main --step 3_merge
-     python -m trainer.main --step 4_gguf
-     python -m trainer.main --step 5_quantize
-     python -m trainer.main --step 6_ollama
-     python -m trainer.main --step 7_evaluate
-     ```
-   - If you omit `--train-mode` or `--device`, the defaults from `config.py` are used.
+**Using the CLI:**
+```sh
+python -m trainer.main --step 1_download
+python -m trainer.main --step 2_train --train-mode lora --device gpu
+python -m trainer.main --step 3_merge
+python -m trainer.main --step 4_gguf
+python -m trainer.main --step 5_quantize
+python -m trainer.main --step 6_ollama
+python -m trainer.main --step 7_evaluate
+```
 
-3. **Switch training modes easily**
-   - Use `--train-mode full`, `--train-mode lora`, or `--train-mode sft` to select your preferred fine-tuning strategy.
+**Or run individual step scripts:**
+```sh
+python -m trainer.steps.1_download
+python -m trainer.steps.2_train
+python -m trainer.steps.3_merge
+python -m trainer.steps.4_gguf
+python -m trainer.steps.5_quantize
+python -m trainer.steps.6_ollama
+python -m trainer.steps.7_evaluate
+```
 
-4. **Customize and extend**
-   - Add new steps, utilities, or models as needed. The pipeline is designed for easy extension and experimentation.
+- If you omit `--train-mode` or `--device`, the defaults from `config.py` are used.
+
+## Switch Training Modes Easily
+- Use `--train-mode full`, `--train-mode lora`, or `--train-mode sft` to select your preferred fine-tuning strategy.
+
+## Customize and Extend
+- Add new steps, utilities, or models as needed. The pipeline is designed for easy extension and experimentation.
 
 ## Workflow Overview
 
@@ -135,7 +173,6 @@ git clone https://github.com/apache/arrow-rs.git arrow-rs
 5. **Quantize**: Quantize the GGUF model for efficient inference.
 6. **Ollama Import**: Create Modelfile and import into Ollama.
 7. **Evaluate**: Test model on Datafusion QA tasks.
-
 
 ## Troubleshooting
 
@@ -153,6 +190,17 @@ git clone https://github.com/apache/arrow-rs.git arrow-rs
 - Use load_in_4bit=True for smaller models
 - Monitor GPU utilization with nvidia-smi
 
+## Planned Extensions
+
+- Full pipeline orchestration and automation
+- CI/CD integration for continuous model updates
+- Additional data augmentation and validation tools
+- Expanded support for new model architectures and adapters
 
 ## License
 See `LICENSE` for details.
+
+
+
+![Alt](https://repobeats.axiom.co/api/embed/5ab1b4862ec4693656a0a125e3b2c14b95ccb973.svg "Repobeats analytics image")
+

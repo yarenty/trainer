@@ -12,3 +12,4 @@ uv
 ollama
 unsloth[colab-new]
 trl
+huggingface_hub

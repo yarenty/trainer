@@ -155,12 +155,14 @@ class Chunker:
             r'def\s+\w+\s*\(',  # Python
             r'fn\s+\w+\s*\(',   # Rust
             r'function\s+\w+\s*\(',  # JavaScript
-            r'public\s+\w+\s+\w+\s*\(',  # Java
-            r'private\s+\w+\s+\w+\s*\(',  # Java
-            r'protected\s+\w+\s+\w+\s*\(',  # Java
+            r'public\s+(static\s+)?\w+\s+\w+\s*\(',  # Java
+            r'private\s+(static\s+)?\w+\s+\w+\s*\(',  # Java
+            r'protected\s+(static\s+)?\w+\s+\w+\s*\(',  # Java
             r'class\s+\w+',  # Class definitions
             r'struct\s+\w+',  # Rust structs
-            r'impl\s+\w+',    # Rust implementations
+            r'impl(?:\s+<[^>]+>)?\s+\w+(?:\s+for\s+\w+)?',    # Rust implementations
+            r'trait\s+\w+', # Rust traits
+            r'enum\s+\w+', # Rust enums
         ]
         
         lines = text.split('\n')

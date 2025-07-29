@@ -24,11 +24,35 @@ def main():
         return
 
     # Write Modelfile
-    modelfile_content = (
-        f"FROM {quantized_gguf}\n"
-        f'PARAMETER stop "### Instruction:"\n'
-        f'PARAMETER stop "### Response:"\n'
-    )
+    modelfile_content = f'''FROM {FINAL_OLLAMA}.gguf
+
+# System prompt for all sessions
+SYSTEM """You are a helpful, concise, and accurate coding assistant specialized in Rust and the DataFusion SQL engine. Always provide high-level, idiomatic Rust code, DataFusion SQL examples, clear documentation, and robust test cases. Your answers should be precise, actionable, and end with '### End'."""
+
+# Prompt template (optional, but recommended for instruct models)
+TEMPLATE """### Instruction:
+{{{{ .Prompt }}}}
+
+### Response:
+"""
+
+# Stop sequences to end generation
+PARAMETER stop "### Instruction:"
+PARAMETER stop "### Response:"
+PARAMETER stop "### End"
+
+# Generation parameters to prevent infinite loops
+PARAMETER num_predict 1024
+PARAMETER repeat_penalty 1.2
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+
+# Metadata for public sharing (for reference only)
+# TAGS ["llama3", "datafusion", "qa", "rust", "sql", "public"]
+# DESCRIPTION "A fine-tuned LLM specialized in Rust and DataFusion (SQL engine) Q&A. Produces idiomatic Rust code, DataFusion SQL examples, clear documentation, and robust test cases, with robust stop sequences and infinite loop prevention."
+
+LICENSE "apache-2.0"
+'''
     with open(modelfile_path, "w") as f:
         f.write(modelfile_content)
     logging.info(f"Modelfile created at {modelfile_path}")

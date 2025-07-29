@@ -1,248 +1,103 @@
-# Q&A Generation Package
+# Trainer: Modular LLM Pipeline Framework
 
-A modular Python package for generating question-answer pairs from documentation and code files using LLM-based processing with robust fallback mechanisms.
+A modular Python package for end-to-end large language model (LLM) data preparation, training, evaluation, and deployment. The `trainer` package provides a complete, auditable workflow for building, fine-tuning, and validating LLMs, with a focus on code and Q/A tasks.
+
+---
 
 ## Overview
 
-This package provides a clean, modular architecture for processing repositories and generating high-quality Q&A pairs for fine-tuning coding assistants. The code is organized into focused classes that handle specific responsibilities:
+The `trainer` package is organized into focused submodules, each responsible for a key part of the LLM pipeline:
 
-- **TextCleaner**: Handles text cleaning and preprocessing
-- **Chunker**: Manages different text chunking strategies
-- **LLM_QA**: Handles LLM interactions and Q&A generation with fallbacks
-- **OutputConverter**: Manages output formatting and file operations
-- **FileProcessor**: Coordinates the overall processing workflow
+- **`qa_prepare`**: Modular Q&A pair generation from code and documentation using LLMs.
+- **`qa_data_quality`**: Automated data quality checks, validation, and cleaning for Q/A datasets.
+- **`steps`**: Step-by-step scripts for model download, training, conversion, quantization, evaluation, and deployment.
+- **`utils`**: Shared utility functions for data loading, logging, and model training.
+
+This structure enables reproducible, high-quality LLM workflows, from raw data to deployable models.
+
+---
 
 ## Architecture
 
 ```
-src/
-├── __init__.py           # Package initialization and exports
-├── text_cleaner.py       # Text cleaning utilities
-├── chunker.py           # Text chunking strategies
-├── llm_qa.py            # LLM Q&A generation with fallbacks
-├── output_converter.py  # Output formatting and file operations
-├── file_processor.py    # Main processing coordination
-└── README.md           # This file
+trainer/
+├── __init__.py
+├── config.py                # Central configuration
+├── main.py                  # (Optional) Main entry point
+├── prepare_data.py          # Data preparation script
+├── post_processing.py       # Output post-processing
+├── qa_prepare/              # Q&A generation module
+├── qa_data_quality/         # Data quality and validation module
+├── steps/                   # Modular pipeline step scripts
+├── utils/                   # Shared utility functions
 ```
 
-## Classes
+---
 
-### TextCleaner
+## Submodules
 
-Handles cleaning and preprocessing of text content.
+### [qa_prepare](./qa_prepare/README.md)
+- **Purpose:** Generate high-quality Q&A pairs from code and documentation using LLMs.
+- **Features:** Modular design, robust fallback, concurrent processing, output validation.
 
-```python
-from src import TextCleaner
+### [qa_data_quality](./qa_data_quality/README.md)
+- **Purpose:** Enforce data quality, format, and validation for Q/A datasets.
+- **Features:** Format enforcement, deduplication, balance analysis, ambiguity flagging, code block validation, template compliance, output post-processing, edge case sampling.
 
-cleaner = TextCleaner()
+### [steps](./steps/README.md)
+- **Purpose:** Modular scripts for each step in the LLM fine-tuning and deployment workflow.
+- **Features:** Download, train, merge, convert, quantize, package, evaluate, and upload models.
 
-# Clean general text
-cleaned_text = cleaner.clean_text(raw_text)
+### [utils](./utils/README.md)
+- **Purpose:** Shared utility functions for model training, data loading, logging, and adapter-based fine-tuning.
+- **Features:** Data tokenization, logging setup, CPU/GPU/LoRA/SFT training helpers.
 
-# Clean code-specific text
-cleaned_code = cleaner.clean_code_text(raw_code)
+---
 
-# Remove boilerplate
-clean_text = cleaner.remove_boilerplate(text)
-```
+## Example Workflow
 
-### Chunker
+1. **Prepare Q&A Data:**  
+   Use `qa_prepare` to generate Q&A pairs from your codebase and documentation.
+2. **Validate and Clean Data:**  
+   Run `qa_data_quality` checks to ensure data quality and consistency.
+3. **Run Pipeline Steps:**  
+   Use the scripts in `steps` to download, train, convert, quantize, and deploy your model.
+4. **Leverage Utilities:**  
+   Use `utils` for data loading, logging, and custom training workflows.
 
-Manages different strategies for breaking text into manageable chunks.
-
-```python
-from src import Chunker
-
-chunker = Chunker()
-
-# Chunk by headings
-chunks = chunker.chunk_by_headings(text, min_chars=200)
-
-# Chunk by paragraphs
-chunks = chunker.chunk_by_paragraphs(text, min_chars=100)
-
-# Fixed-size chunking
-chunks = chunker.chunk_by_fixed_size(text, chunk_size=500, overlap=50)
-
-# Code-specific chunking
-chunks = chunker.chunk_code_by_blocks(code_text, min_chars=100)
-```
-
-### LLM_QA
-
-Handles LLM interactions for Q&A generation with robust fallback mechanisms.
-
-```python
-from src import LLM_QA
-import ollama
-
-client = ollama.Client()
-llm_qa = LLM_QA(client, model_name="llama3.2")
-
-# Generate Q&A pair
-qa_pair = llm_qa.generate_qa_pair(text_chunk)
-```
-
-### OutputConverter
-
-Manages output formatting, validation, and file operations.
-
-```python
-from src import OutputConverter
-
-converter = OutputConverter()
-
-# Write Q&A pairs to JSONL
-converter.write_qa_pairs_to_jsonl(qa_pairs, "output.jsonl")
-
-# Validate Q&A pair
-is_valid = converter.validate_qa_pair(qa_pair)
-
-# Filter invalid pairs
-valid_pairs = converter.filter_qa_pairs(all_pairs)
-
-# Merge multiple JSONL files
-converter.merge_jsonl_files(["file1.jsonl", "file2.jsonl"], "merged.jsonl")
-```
-
-### FileProcessor
-
-Coordinates the overall processing workflow and manages concurrency.
-
-```python
-from src import FileProcessor
-import ollama
-
-client = ollama.Client()
-processor = FileProcessor(
-    ollama_client=client,
-    model_name="llama3.2",
-    max_workers=8
-)
-
-# Process entire repository
-summary = processor.process_repository(
-    repo_name="my-repo",
-    repo_path="/path/to/repo",
-    output_base_dir="./output"
-)
-```
-
-## Usage Examples
-
-### Basic Usage
-
-```python
-from src import FileProcessor
-import ollama
-
-# Initialize
-client = ollama.Client()
-processor = FileProcessor(client, model_name="llama3.2")
-
-# Process a repository
-summary = processor.process_repository(
-    repo_name="example-repo",
-    repo_path="/path/to/repo",
-    output_base_dir="./output"
-)
-
-print(f"Generated {summary['total_qa_pairs']} Q&A pairs")
-```
-
-### Custom Processing
-
-```python
-from src import TextCleaner, Chunker, LLM_QA, OutputConverter
-import ollama
-
-# Initialize components
-client = ollama.Client()
-cleaner = TextCleaner()
-chunker = Chunker()
-llm_qa = LLM_QA(client, "llama3.2")
-converter = OutputConverter()
-
-# Custom processing pipeline
-raw_text = "..."
-cleaned_text = cleaner.clean_text(raw_text)
-chunks = chunker.chunk_by_headings(cleaned_text)
-
-qa_pairs = []
-for chunk in chunks:
-    qa_pair = llm_qa.generate_qa_pair(chunk)
-    if converter.validate_qa_pair(qa_pair):
-        qa_pairs.append(qa_pair)
-
-converter.write_qa_pairs_to_jsonl(qa_pairs, "custom_output.jsonl")
-```
-
-### Using the Modular Script
-
-```bash
-# Process a single repository
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repo \
-    --repo-name my-repo \
-    --output-dir ./output
-
-# Process multiple repositories
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repos \
-    --output-dir ./output \
-    --batch-mode
-
-# Use different model and enable verbose logging
-python scripts/prepare_data_modular.py \
-    --repo-path /path/to/repo \
-    --model llama3.1 \
-    --verbose \
-    --output-dir ./output
-```
+---
 
 ## Features
 
-- **Modular Design**: Clean separation of concerns with focused classes
-- **Robust Fallbacks**: Multiple fallback mechanisms for LLM failures
-- **Concurrent Processing**: Efficient parallel processing of files
-- **Flexible Chunking**: Multiple strategies for text chunking
-- **Quality Validation**: Built-in validation and filtering of Q&A pairs
-- **Comprehensive Logging**: Detailed logging for debugging and monitoring
-- **Error Handling**: Graceful error handling throughout the pipeline
+- **End-to-End Pipeline:** From raw data to deployable LLMs.
+- **Modular and Auditable:** Each step and utility is independently runnable and testable.
+- **Quality-First:** Built-in data validation and cleaning.
+- **Flexible:** Supports multiple training modes and deployment targets (Hugging Face, Ollama, llama.cpp).
 
-## Output Format
-
-The package generates JSONL files with the following structure:
-
-```json
-{
-  "question": "What does this function do?",
-  "answer": "This function processes data by...",
-  "source_file": "/path/to/file.py",
-  "source_repo": "repository-name",
-  "generated_at": "2024-01-01T12:00:00"
-}
-```
+---
 
 ## Dependencies
 
-- `ollama`: For LLM interactions
-- `pathlib`: For file path handling
-- `concurrent.futures`: For parallel processing
-- Standard library modules: `json`, `logging`, `re`, `os`
+- `transformers`, `datasets`, `trl`, `peft`, `huggingface_hub`, `torch`
+- Standard Python libraries: `os`, `json`, `glob`, `logging`, `subprocess`, `shutil`
 
-## Error Handling
+---
 
-The package includes comprehensive error handling:
+## Getting Started
 
-- **LLM Failures**: Automatic fallback to simpler Q&A generation
-- **File Errors**: Graceful handling of file reading/writing errors
-- **JSON Parsing**: Robust extraction of Q&A pairs from malformed LLM responses
-- **Concurrent Processing**: Timeout handling and error isolation
+1. Clone the repository and install dependencies.
+2. Configure your settings in `trainer/config.py`.
+3. Follow the example workflow above, or see each submodule’s README for details.
 
-## Performance
+---
 
-- **Concurrent Processing**: Configurable number of workers (default: 8)
-- **Efficient Chunking**: Smart chunking strategies to minimize redundant processing
-- **Memory Management**: Streaming processing of large files
-- **Timeout Handling**: Prevents hanging on problematic files or LLM calls 
+## Planned Extensions
+
+- Full pipeline orchestration and automation.
+- CI/CD integration for continuous model updates.
+- Additional data augmentation and validation tools.
+- Expanded support for new model architectures and adapters.
+
+---
+
+For detailed usage and API documentation, see the README in each submodule. 

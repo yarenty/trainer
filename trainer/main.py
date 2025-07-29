@@ -14,6 +14,7 @@ STEP_SCRIPTS = {
     '5_quantize': '5_quantize',
     '6_ollama': '6_ollama',
     '7_evaluate': '7_evaluate',
+    '8_upload_to_hf': '8_upload_to_hf',
 }
 
 def main():

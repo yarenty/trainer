@@ -63,7 +63,7 @@ class LLM_QA:
         """
         prompt = f"""Given this code/documentation text, create a comprehensive Q&A pair for fine-tuning a coding assistant.
 
-Question: Ask a practical question that a developer might have about this code/concept. The question should be specific and actionable.
+Question: Ask a practical question that a developer might have about this code/concept. The question should be specific and actionable. And need to have some context like: function name or module name or at least project name.
 
 Answer: Provide a detailed, educational response that includes:
 1. Clear explanation of the concept/code and its purpose
@@ -76,6 +76,7 @@ CRITICAL: Your response must be valid JSON. Follow these rules:
 - Use ONLY the exact JSON format shown below
 - If you include code examples, use markdown code blocks (```code```)
 - Escape any quotes within the answer text with backslashes
+- When asking about code - provide proper function name (module if you know it)
 - Do NOT use YAML-style formatting (no | characters)
 - Do NOT use multi-line strings without proper escaping
 

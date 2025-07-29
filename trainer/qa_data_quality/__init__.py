@@ -10,4 +10,5 @@ from .ambiguity_flagger import QAAmbiguityFlagger
 from .code_block_validator import QACodeBlockValidator
 from .prompt_template_checker import QAPromptTemplateChecker
 from .output_postprocessor import QAOutputPostProcessor
-from .edge_case_sampler import QAEedgeCaseSampler 
+from .edge_case_sampler import QAEedgeCaseSampler
+from .question_structure_adjuster import QAQuestionStructureAdjuster 
