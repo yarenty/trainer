@@ -8,24 +8,26 @@ import os
 
 # Directory paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # parent of trainer/
-DATA_DIR = os.path.join(BASE_DIR, "qa_data")
+DATA_DIR = os.path.join(BASE_DIR, "qa_data_fixed")
 SOURCES_DIR = os.path.join(BASE_DIR, "sources")
 # model
 MODELS_DIR = os.path.join(BASE_DIR,  "models")
-LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "local_model")
+LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "local_qwen")
 # llama.cpp installation
 LLAMA_CPP_PATH = os.path.join(BASE_DIR, "llama.cpp")
 
 # Model and processing settings
 QA_MODEL = "llama3.2"
-DEFAULT_MODEL_NAME =  "meta-llama/Llama-3.2-3B-Instruct" 
+DEFAULT_MODEL_NAME =  "Qwen/Qwen2.5-3B-Instruct" 
 #Note: tried meta-llama/Llama-3.1-8B - but 80GB GPU is too small 
+#TRY: Qwen/Qwen2.5-Coder-3B-Instruct
+
 
 # step-by-step fine-tuning
-FINE_TUNED_MODEL = "llama32-datafusion-instruct" 
-MERGED_MODEL = "llama32-datafusion-instruct-merged" 
-GGUF_MODEL = "llama32-datafusion-instruct-gguf"
-FINAL_OLLAMA = "llama32_datafusion"
+FINE_TUNED_MODEL = "qwen2.5-3B-datafusion-instruct" 
+MERGED_MODEL = "qwen2.5-3B-datafusion-instruct-merged" 
+GGUF_MODEL = "qwen2.5-3B-datafusion-instruct-gguf"
+FINAL_OLLAMA = "jaro/qwen2.5-3B-datafusion"
 
 MAX_WORKERS = 8
 
